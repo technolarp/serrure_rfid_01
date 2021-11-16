@@ -11,5 +11,4 @@
 	"statutSerrurePrecedent": 1,
 	"nbTag": 2,	
 	"tagUid":[["C0", "E6", "2F", "25"],["D3", "C5", "49", "16"]]
-	
 }

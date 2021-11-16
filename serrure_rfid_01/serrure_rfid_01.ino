@@ -168,59 +168,19 @@ void setup()
   // RFID
   aPn532 = new M_pn532;
 
-  /*
-  // KEYPAD
-  aKeypad = new M_keypad();
-
-  // CHECK RESET OBJECT CONFIG  
-  if (aKeypad->checkReset('*'))
-  {
-    for (int i = 0; i < aConfig.objectConfig.activeLeds; i++)
-    {
-      aFastled->setLed(i, CRGB::Yellow);
-    }
-    aFastled->ledShow();
-    
-    Serial.println(F(""));
-    Serial.println(F("!!! RESET OBJECT CONFIG !!!"));
-    Serial.println(F(""));
-    aConfig.writeDefaultObjectConfig("/config/objectconfig.txt");
-    aConfig.printJsonFile("/config/objectconfig.txt");
-
-    delay(1000);
-  }
-
-  // CHECK RESET NETWORK CONFIG  
-  if (aKeypad->checkReset('D'))
-  {
-    for (int i = 0; i < aConfig.objectConfig.activeLeds; i++)
-    {
-      aFastled->setLed(i, CRGB::Cyan);
-    }
-    aFastled->ledShow();
-    
-    Serial.println(F(""));
-    Serial.println(F("!!! RESET NETWORK CONFIG !!!"));
-    Serial.println(F(""));
-    aConfig.writeDefaultObjectConfig("/config/networkconfig.txt");
-    aConfig.printJsonFile("/config/networkconfig.txt");
-
-    delay(1000);
-  }
-  */
-
   // WIFI
   WiFi.disconnect(true);
   
+  /*
   // AP MODE
   WiFi.mode(WIFI_AP_STA);
   WiFi.softAPConfig(aConfig.networkConfig.apIP, aConfig.networkConfig.apIP, aConfig.networkConfig.apNetMsk);
   WiFi.softAP(aConfig.networkConfig.apName, aConfig.networkConfig.apPassword);
   
-  /*
+  */
   // CLIENT MODE POUR DEBUG
-  const char* ssid = "SSID";
-  const char* password = "PASSWORD";
+  const char* ssid = "MYDEBUG";
+  const char* password = "3V8WtBvJ";
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
 
@@ -228,7 +188,7 @@ void setup()
   {
     Serial.printf("WiFi Failed!\n");
   }
-  */
+  
   
   // WEB SERVER
   // Print ESP Local IP Address
@@ -288,6 +248,9 @@ void loop()
   // manage task scheduler
   globalScheduler.execute();
 
+  // RFID PN5323
+  aPn532->updateRFID();
+
   // gerer le statut de la serrure
   switch (aConfig.objectConfig.statutSerrureActuel)
   {
@@ -313,7 +276,7 @@ void loop()
 
     case SERRURE_RECONFIG:
       // un parametre doit etre modifie
-      serrureReconfig();
+//      serrureReconfig();
       break;
 
     case SERRURE_BLINK:
@@ -326,12 +289,6 @@ void loop()
       break;
   }
 
-  // check changement de parametres via le keypad
-  //checkChangementParametres();
-
-  // RFID PN5323
-  aPn532->updateRFID(); 
-
   // HEARTBEAT
   currentMillisHB = millis();
   if(currentMillisHB - previousMillisHB > intervalHB)
@@ -339,18 +296,7 @@ void loop()
     previousMillisHB = currentMillisHB;
     
     // send new value to html
-    unsigned long int now = millis() / 1000;
-    uint16_t days = now / 86400;
-    uint16_t hours = (now%86400) / 3600;
-    uint16_t minutes = (now%3600) / 60;
-    uint16_t seconds = now % 60;
-    
-    String toSend = "{\"uptime\":\"";
-    toSend+= String(days) + String("d ") + String(hours) + String("h ") + String(minutes) + String("m ") + String(seconds) + String("s");
-    toSend+= "\"}";
-    
-    //Serial.println(toSend);
-    ws.textAll(toSend);
+    sendUptime();
   }
 }
 /*
@@ -386,9 +332,6 @@ void serrureFermee()
     Serial.print(F("SERRURE FERMEE"));
     Serial.println();
   }
-
-  // on check si une touche du clavier a ete activee
-  //appuiClavier();
   
   // on check si un tag rfid est present
   checkRfidTag();
@@ -411,10 +354,7 @@ void serrureOuverte()
     Serial.print(F("SERRURE OUVERTE"));
     Serial.println();
   }
-
-  // on check si une touche du clavier a ete activee
-  //appuiClavier();
-  
+ 
   // on check si un tag rfid est present
   checkRfidTag();
 }
@@ -477,163 +417,7 @@ void serrureBloquee()
   }
 }
 
-void serrureReconfig()
-{
-  /*
-  if (!aFastled->isEnabled() && uneFois)
-  {
-    uneFois = false;
-    
-    if (!aKeypad->getUneFoisFlag(RECONFIG_CODE))
-    {
-      aFastled->startAnimSerpent(0, 50, 50, CRGB::Blue);
-      modeReconfig = RECONFIG_CODE;
-    }
-    else if (!aKeypad->getUneFoisFlag(RECONFIG_ERREUR))
-    {
-      aFastled->startAnimSerpent(0, 50, 50, CRGB::Yellow);
-      modeReconfig = RECONFIG_ERREUR;
-    }
-    else if (!aKeypad->getUneFoisFlag(RECONFIG_DELAI))
-    {
-      aFastled->startAnimSerpent(0, 50, 50, CRGB::Cyan);
-      modeReconfig = RECONFIG_DELAI;
-    }
-    else if (!aKeypad->getUneFoisFlag(RECONFIG_TAILLE_CODE))
-    {
-      aFastled->startAnimSerpent(0, 50, 50, CRGB::Purple);
-      modeReconfig = RECONFIG_TAILLE_CODE;
-    }
 
-    for (int i = 0; i < 8; i++)
-    {
-      bufferReconfig[i]='0';
-    }
-    
-    Serial.println(F("START TASK RECONFIG"));
-  }
-
-  // check touche
-  // KEYPAD
-  char customKey = aKeypad->getChar();
-
-  // une touche a ete pressee
-  if (customKey != NO_KEY)
-  {
-    if (customKey != '#')
-    {
-      for (int i=0;i<7;i++)
-      {
-        bufferReconfig[i] = bufferReconfig[i+1];
-        Serial.print(bufferReconfig[i]);
-      }
-      bufferReconfig[7] = customKey;
-      Serial.println(bufferReconfig[7]);
-    }
-    else
-    {
-      Serial.println(F("validation"));
-      
-      if (modeReconfig == RECONFIG_CODE)
-      // modification du code de la serrure
-      {
-        Serial.print(F("NOUVEAU CODE :"));
-        for (int i = 0; i < aConfig.objectConfig.tailleCode; i++)
-        {
-          aConfig.objectConfig.codeSerrure[i] = bufferReconfig[i+8-aConfig.objectConfig.tailleCode];
-          Serial.print(aConfig.objectConfig.codeSerrure[i]);
-        }
-        Serial.println(F(""));
-      }
-      else if (modeReconfig == RECONFIG_ERREUR)
-      // modification du nombre max d erreur de code
-      {
-        // taille min=1, taille max=9
-        // ascii code, 1=49, 9=57        
-        if (bufferReconfig[7]>=49 && bufferReconfig[7]<=57)
-        {
-          aConfig.objectConfig.nbErreurCodeMax=bufferReconfig[7]-48;          
-        }
-        else
-        {
-          // valeur par defaut
-          aConfig.objectConfig.nbErreurCodeMax=3;
-        }
-
-        Serial.print(F("NOUVEAU NB MAX ERREUR : "));
-        Serial.println(aConfig.objectConfig.nbErreurCodeMax);
-      }
-      else if (modeReconfig == RECONFIG_DELAI)
-      // modification du delai de blocage
-      {
-        uint16_t nouveauDelai=0;
-        
-        for (int i=0;i<8;i++)
-        {
-          // ascii code, 0=48, 9=57
-          nouveauDelai*=10;
-          if (bufferReconfig[i]>=48 && bufferReconfig[i]<=57)
-          {
-            nouveauDelai+=bufferReconfig[i]-48;
-            Serial.println(nouveauDelai);
-          }
-        }
-        
-        nouveauDelai=max<int>(nouveauDelai,1);
-        nouveauDelai=min<int>(nouveauDelai,300);
-
-        aConfig.objectConfig.delaiBlocage=nouveauDelai;
-
-        Serial.print(F("NOUVEAU DELAI BLOCAGE : "));
-        Serial.print(aConfig.objectConfig.delaiBlocage);
-        Serial.println(F(" SECONDES"));
-      }
-      else if (modeReconfig == RECONFIG_TAILLE_CODE)
-      // modification de la taille du code
-      {
-        // taille min=1, taille max=8
-        // ascii code, 1=49, 8=56        
-        if (bufferReconfig[7]>=49 && bufferReconfig[7]<=56)
-        {
-          aConfig.objectConfig.tailleCode=bufferReconfig[7]-48;          
-        }
-        else
-        {
-          // valeur par defaut
-          aConfig.objectConfig.tailleCode=4;
-        }
-
-        for (int i=0;i<8;i++)
-        {
-          codeSerrureActuel[i]='0';
-        }
-
-        Serial.print(F("NOUVELLE TAILLE CODE : "));
-        Serial.println(aConfig.objectConfig.tailleCode);
-      }
-
-      // stop la reconfig
-      aFastled->disable();
-    }
-  }
-
-  // Check fin de la reconfig
-  if (!aFastled->isAnimActive())
-  {
-    Serial.print(F("END TASK RECONFIG"));
-    Serial.println();
-    aConfig.objectConfig.statutSerrureActuel = aConfig.objectConfig.statutSerrurePrecedent;
-    uneFois = true;
-
-    // ecrire la config sur littleFS
-    aConfig.writeObjectConfig("/config/objectconfig.txt");
-    aConfig.printJsonFile("/config/objectconfig.txt");
-
-    // resend config object
-    ws.textAll(aConfig.stringJsonFile("/config/objectconfig.txt"));
-  }
-  */
-}
 
 void serrureBlink()
 {
@@ -727,147 +511,11 @@ void checkRfidTag()
       Serial.println(F("mauvais tag"));
       buzzer->longBeep();
     }
+
+    // send uid 
+    sendTagUid();
   }
 }
-
-/*
-void appuiClavier()
-{
-  // KEYPAD
-  char customKey = aKeypad->getChar();
-
-  // une touche a ete pressee
-  if (customKey != NO_KEY)
-  {
-    buzzer->shortBeep();
-
-    // la touche pressee n'est pas un #
-    if (customKey != '#')
-    {
-      Serial.print(customKey);
-
-      // on met a jour codeSerrureActuel[] en decalant chaque caractere
-      for (int i = 0; i < aConfig.objectConfig.tailleCode - 1; i++)
-      {
-        codeSerrureActuel[i] = codeSerrureActuel[i + 1];        
-      }
-      codeSerrureActuel[aConfig.objectConfig.tailleCode - 1] = customKey;
-    }
-    else
-      // la touche pressee est un #
-    {
-      Serial.println();
-      Serial.println(customKey);      
-      
-      // on compare codeSerrureActuel[] et codeSerrure[]
-      Serial.println(F("actuel : attendu"));
-      bool codeOK = true;
-      for (int i = 0; i < aConfig.objectConfig.tailleCode; i++)
-      {
-        if (codeSerrureActuel[i] != aConfig.objectConfig.codeSerrure[i])
-        {
-          // ce caractere est faux, le code n'est pas bon
-          codeOK = false;          
-        }
-
-        Serial.print(codeSerrureActuel[i]);
-        Serial.print(" : ");
-        Serial.println(aConfig.objectConfig.codeSerrure[i]);
-      }
-
-      // le code est correct, on change le statut de la serrure
-      if (codeOK)
-      {
-        buzzer->shortBeep();
-
-        aConfig.objectConfig.statutSerrureActuel = !aConfig.objectConfig.statutSerrureActuel;
-        aConfig.objectConfig.nbErreurCode = 0;
-
-        for (int i = 0; i < aConfig.objectConfig.tailleCode; i++)
-        {
-          codeSerrureActuel[i] = '0';
-        }
-      }
-      // le code est incorrect
-      else
-      {
-        // on beep long
-        buzzer->longBeep();
-
-        // on augmente le compteur de code faux
-        aConfig.objectConfig.nbErreurCode += 1;
-
-        aConfig.objectConfig.statutSerrurePrecedent = aConfig.objectConfig.statutSerrureActuel;
-
-        // on demarre l'anim faux code
-        aConfig.objectConfig.statutSerrureActuel = SERRURE_ERREUR;
-      }
-
-      uneFois = true;
-
-      // ecrire la config sur littleFS
-      aConfig.writeObjectConfig("/config/objectconfig.txt");
-
-      // resend config object
-      ws.textAll(aConfig.stringJsonFile("/config/objectconfig.txt"));
-    }
-  }
-}
-*/
-
-void checkChangementParametres()
-{
-/*
-	if (aConfig.objectConfig.statutSerrureActuel == SERRURE_OUVERTE)
-	{
-		if (aKeypad->checkCombo('1','A',RECONFIG_CODE))
-		{
-		  Serial.println();
-		  Serial.println(F("combo 1 A - changement de code"));
-
-		  uneFois = true;
-
-		  aConfig.objectConfig.statutSerrurePrecedent = aConfig.objectConfig.statutSerrureActuel;
-		  aConfig.objectConfig.statutSerrureActuel = SERRURE_RECONFIG;
-		}
-	  
-		if (aKeypad->checkCombo('4','B',RECONFIG_ERREUR))
-		{
-		  Serial.println();
-		  Serial.println(F("combo 4 B - changement du nombre max d erreur"));
-
-		  uneFois = true;
-
-		  aConfig.objectConfig.statutSerrurePrecedent = aConfig.objectConfig.statutSerrureActuel;
-		  aConfig.objectConfig.statutSerrureActuel = SERRURE_RECONFIG;
-		}
-	  
-		if (aKeypad->checkCombo('7','C',RECONFIG_DELAI))
-		{
-		  Serial.println();
-		  Serial.println(F("combo 7 C - changement du delai de blocage"));
-
-		  uneFois = true;
-
-		  aConfig.objectConfig.statutSerrurePrecedent = aConfig.objectConfig.statutSerrureActuel;
-		  aConfig.objectConfig.statutSerrureActuel = SERRURE_RECONFIG;
-		}
-	  
-		if (aKeypad->checkCombo('*','D',RECONFIG_TAILLE_CODE))
-		{
-		  Serial.println();
-		  Serial.println(F("combo * D - changement de la taille du code"));
-
-		  uneFois = true;
-
-		  aConfig.objectConfig.statutSerrurePrecedent = aConfig.objectConfig.statutSerrureActuel;
-		  aConfig.objectConfig.statutSerrureActuel = SERRURE_RECONFIG;
-		}
-	}
-  */
-}
-
-
 
 
 String processor(const String& var)
@@ -900,6 +548,10 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
         // send config value to html
         ws.textAll(aConfig.stringJsonFile("/config/objectconfig.txt"));
         ws.textAll(aConfig.stringJsonFile("/config/networkconfig.txt"));
+
+        // send volatile info
+        sendUptime();
+        
         break;
         
       case WS_EVT_DISCONNECT:
@@ -1227,7 +879,9 @@ uint16_t checkValeur(uint16_t valeur, uint16_t minValeur, uint16_t maxValeur)
  *         2 if SDA held low by slave clock stretch for > 2sec
  *         3 if SDA held low after 20 clocks.
  *         
- * from: http://www.forward.com.au/pfod/ArduinoProgramming/I2C_ClearBus/index.html
+ * from: 
+ * https://github.com/esp8266/Arduino/issues/1025
+ * http://www.forward.com.au/pfod/ArduinoProgramming/I2C_ClearBus/index.html
  */
 int I2C_ClearBus()
 {
@@ -1295,4 +949,38 @@ int I2C_ClearBus()
   pinMode(SDA, INPUT); // and reset pins as tri-state inputs which is the default state on reset
   pinMode(SCL, INPUT);
   return 0; // all ok
+}
+
+
+void sendUptime()
+{
+  uint32_t now = millis() / 1000;
+  uint16_t days = now / 86400;
+  uint16_t hours = (now%86400) / 3600;
+  uint16_t minutes = (now%3600) / 60;
+  uint16_t seconds = now % 60;
+    
+  String toSend = "{\"uptime\":\"";
+  toSend+= String(days) + String("d ") + String(hours) + String("h ") + String(minutes) + String("m ") + String(seconds) + String("s");
+  toSend+= "\"}";
+
+  ws.textAll(toSend);
+  Serial.println(toSend);
+}
+
+void sendTagUid()
+{
+  String toSend = "{\"lastTagUid\":[";
+  for (uint8_t i=0;i<aPn532->uidLength;i++)
+  {
+    toSend+= "\"" + String(aPn532->uid[i], HEX) + "\"";
+    if (i<aPn532->uidLength-1)
+    {
+      toSend+= ",";
+    }
+  }
+  
+  toSend+= "]}";
+
+  ws.textAll(toSend);
 }

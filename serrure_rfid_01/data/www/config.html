@@ -25,6 +25,7 @@
   setInterval(checkHeartbeat, 10000);
   
   var gateway = `ws://${window.location.hostname}/ws`;
+  //var gateway = `ws://192.168.3.199/ws`;
   var websocket;
   window.addEventListener('load', onLoad);
   
@@ -57,7 +58,8 @@
   
   function onMessage(event) 
   {
-    var obj = JSON.parse(event.data);
+    console.log(event.data);
+	var obj = JSON.parse(event.data);
     console.log(event.data);
     
     if (obj.hasOwnProperty('uptime'))
@@ -93,16 +95,6 @@
       document.getElementById("brightness2").innerHTML = obj.brightness;
     }
 	
-	if (obj.hasOwnProperty('tailleCode'))
-    {
-      document.getElementById("tailleCode").value = obj.tailleCode;
-    }
-	
-	if (obj.hasOwnProperty('codeSerrure'))
-    {
-      document.getElementById("codeSerrure").value = obj.codeSerrure.substring(0, document.getElementById("tailleCode").value);
-    }	
-	
 	if (obj.hasOwnProperty('nbErreurCodeMax'))
     {
       document.getElementById("nbErreurCodeMax").value = obj.nbErreurCodeMax;
@@ -118,6 +110,42 @@
       document.getElementById("delaiBlocage").value = obj.delaiBlocage;
       document.getElementById("delaiBlocage2").innerHTML = obj.delaiBlocage;
     }
+	
+	if (obj.hasOwnProperty('tagUid') && obj.hasOwnProperty('nbTag') )
+    {
+      nbUid = document.getElementById("nbTag").innerHTML;
+	  
+	  for (let i = 0; i < obj.nbTag ; i++)
+	  {
+		uid = "";
+		for (let j = 0; j < 4 ; j++)
+		{
+			uid = uid + obj.tagUid[i][j];
+			if (j<3)
+			{
+				uid = uid + ":";
+			}
+		}
+		buttonName="tagUid_" + i;
+		document.getElementById(buttonName).innerHTML=uid;
+	  }
+	  document.getElementById("nbTag").innerHTML = obj.nbTag;
+    }
+	
+	if (obj.hasOwnProperty('lastTagUid'))
+	{
+		newUid = "";
+		for (let i = 0; i < 4 ; i++)
+		{
+			newUid = newUid + obj.lastTagUid[i];
+			if (i<3)
+			{
+				newUid = newUid + ":";
+			}
+		}
+		
+		document.getElementById("lastTagUid").innerHTML=newUid.toUpperCase();
+	}
 	
 	if (obj.hasOwnProperty('statutSerrureActuel'))
     {
@@ -259,12 +287,54 @@
       <td><input class="enabled" id="brightness" name="brightness" type="range" min="0" max="255" step="5" onChange="sendNewValue('brightness',document.getElementById('brightness').value, false);"></td>
     </tr>
 	<tr>
-      <td>Taille de code </td>
-      <td><input type="number" id="tailleCode" name="tailleCode" min="1" max="8" onchange="sendNewValue('tailleCode',document.getElementById('tailleCode').value, false);"> &nbsp; &nbsp; &nbsp; &nbsp;  1 - 8</td>
+      <td>Tags (<span id="nbTag"></span>/10)</td>
+      <td>
+		<table width="100%">
+		<tr>
+		<td width="50%">
+		0:&nbsp;&nbsp;<span id="tagUid_0"></span>&nbsp;&nbsp;<button id='removeUidBut_0' onclick="sendNewValue('removeUid',0, false);">&#10060;</button>
+		</td>
+		<td width="50%">
+		5:&nbsp;&nbsp;<span id="tagUid_5"></span>&nbsp;&nbsp;<button id='removeUidBut_5' onclick="sendNewValue('removeUid',5, false);">&#10060;</button>
+		</td>
+		</tr>
+		<tr>
+		<td>
+		1:&nbsp;&nbsp;<span id="tagUid_1"></span>&nbsp;&nbsp;<button id='removeUidBut_1' onclick="sendNewValue('removeUid',1, false);">&#10060;</button>
+		</td>
+		<td>
+		6:&nbsp;&nbsp;<span id="tagUid_6"></span>&nbsp;&nbsp;<button id='removeUidBut_6' onclick="sendNewValue('removeUid',6, false);">&#10060;</button>
+		</td>
+		</tr>
+		<tr>
+		<td>
+		2:&nbsp;&nbsp;<span id="tagUid_2"></span>&nbsp;&nbsp;<button id='removeUidBut_2' onclick="sendNewValue('removeUid',2, false);">&#10060;</button>
+		</td>
+		<td>
+		7:&nbsp;&nbsp;<span id="tagUid_7"></span>&nbsp;&nbsp;<button id='removeUidBut_7' onclick="sendNewValue('removeUid',7, false);">&#10060;</button>
+		</td>
+		</tr>
+		<tr>
+		<td>
+		3:&nbsp;&nbsp;<span id="tagUid_3"></span>&nbsp;&nbsp;<button id='removeUidBut_3' onclick="sendNewValue('removeUid',3, false);">&#10060;</button>
+		</td>
+		<td>
+		8:&nbsp;&nbsp;<span id="tagUid_8"></span>&nbsp;&nbsp;<button id='removeUidBut_8' onclick="sendNewValue('removeUid',8, false);">&#10060;</button>
+		</td>
+		</tr>
+		<tr>
+		<td>
+		4:&nbsp;&nbsp;<span id="tagUid_4"></span>&nbsp;&nbsp;<button id='removeUidBut_4' onclick="sendNewValue('removeUid',4, false);">&#10060;</button>
+		</td>
+		<td>
+		9:&nbsp;&nbsp;<span id="tagUid_9"></span>&nbsp;&nbsp;<button id='removeUidBut_9' onclick="sendNewValue('removeUid',9, false);">&#10060;</button>
+		</tr>
+		</table>
+	  </td>
     </tr>
 	<tr>
-      <td>Code serrure </td>
-      <td><input type="text" id="codeSerrure" name="codeSerrure" onchange="sendNewValue('codeSerrure',document.getElementById('codeSerrure').value, true);"> &nbsp; &nbsp; &nbsp; &nbsp; 8 characters max in [0123456789ABCD*]</td>
+      <td>Dernier tag scanné</td>
+      <td><span id="lastTagUid"></span></td>
     </tr>	
 	<tr>
       <td>Nombre Erreur Code Actuel : <span id="nbErreurCode" ></span>&nbsp;</td>

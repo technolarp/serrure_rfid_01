@@ -17,7 +17,6 @@ class M_config
   	uint16_t groupId;
       
   	char objectName[SIZE_ARRAY];
-    
   	
   	uint8_t activeLeds;
     uint8_t brightness;
@@ -278,6 +277,27 @@ class M_config
 
     doc["nbTag"] = objectConfig.nbTag;
     
+    //uint8_t tagUid[10][4];
+    
+    StaticJsonDocument<512> docUidAll;
+    JsonArray arrayUidAll = docUidAll.to<JsonArray>();
+    
+    for (uint8_t i=0;i<objectConfig.nbTag;i++)
+    {
+      StaticJsonDocument<64> docCouleur;
+      JsonArray arrayUid = docCouleur.to<JsonArray>();
+      
+      for (uint8_t j=0;j<4;j++)
+      {
+        arrayUid.add(String(objectConfig.tagUid[i][j],HEX));
+      }      
+      
+      arrayUidAll.add(arrayUid);
+    }
+
+    doc["tagUid"]=arrayUidAll;
+    
+    
     String newObjectName="";
     
     for (int i=0;i<SIZE_ARRAY;i++)
@@ -365,10 +385,10 @@ class M_config
 	objectConfig.statutSerrureActuel = 1;
 	objectConfig.statutSerrurePrecedent = 1;
 
-  objectConfig.nbTag = 1; 
+  objectConfig.nbTag = 2; 
 	
 	strlcpy(  objectConfig.objectName,
-  			          "serrure",
+  			          "serrure rfid",
   			          sizeof("serrure"));
 	
 	writeObjectConfig(filename);
@@ -377,8 +397,8 @@ class M_config
   void writeDefaultNetworkConfig(const char * filename)
   {
   strlcpy(  networkConfig.apName,
-                  "SERRURE",
-                  sizeof("SERRURE"));
+                  "SERRURERFID",
+                  sizeof("SERRURERFID"));
   
   strlcpy(  networkConfig.apPassword,
                   "",
