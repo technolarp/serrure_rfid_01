@@ -284,18 +284,18 @@ class M_config
     
     for (uint8_t i=0;i<objectConfig.nbTag;i++)
     {
-      StaticJsonDocument<64> docCouleur;
+      StaticJsonDocument<128> docCouleur;
       JsonArray arrayUid = docCouleur.to<JsonArray>();
       
       for (uint8_t j=0;j<4;j++)
       {
         arrayUid.add(String(objectConfig.tagUid[i][j],HEX));
-      }      
+      }
       
       arrayUidAll.add(arrayUid);
     }
-
     doc["tagUid"]=arrayUidAll;
+    serializeJsonPretty(doc, Serial);
     
     
     String newObjectName="";

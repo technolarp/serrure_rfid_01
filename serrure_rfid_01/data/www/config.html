@@ -60,7 +60,7 @@
   {
     console.log(event.data);
 	var obj = JSON.parse(event.data);
-    console.log(event.data);
+    //console.log(event.data);
     
     if (obj.hasOwnProperty('uptime'))
     {
@@ -113,9 +113,7 @@
 	
 	if (obj.hasOwnProperty('tagUid') && obj.hasOwnProperty('nbTag') )
     {
-      nbUid = document.getElementById("nbTag").innerHTML;
-	  
-	  for (let i = 0; i < obj.nbTag ; i++)
+      for (let i = 0; i < obj.nbTag ; i++)
 	  {
 		uid = "";
 		for (let j = 0; j < 4 ; j++)
@@ -126,10 +124,26 @@
 				uid = uid + ":";
 			}
 		}
-		buttonName="tagUid_" + i;
-		document.getElementById(buttonName).innerHTML=uid;
+		tagName="tagUid_" + i;
+		buttonName="removeUidBut_" + i;
+		document.getElementById(tagName).disabled = false;
+		document.getElementById(buttonName).disabled = false;
+				
+		document.getElementById(tagName).innerHTML=uid;
+		document.getElementById(buttonName).innerHTML='&#10060;';
 	  }
 	  document.getElementById("nbTag").innerHTML = obj.nbTag;
+	  
+	  for (let i = obj.nbTag; i < 10 ; i++)
+	  {
+		tagName="tagUid_" + i;
+		buttonName="removeUidBut_" + i;
+		document.getElementById(tagName).disabled = true;
+		document.getElementById(buttonName).disabled = true;
+				
+		document.getElementById(tagName).innerHTML='-';
+		document.getElementById(buttonName).innerHTML='X';
+	  }
     }
 	
 	if (obj.hasOwnProperty('lastTagUid'))
@@ -145,6 +159,15 @@
 		}
 		
 		document.getElementById("lastTagUid").innerHTML=newUid.toUpperCase();
+		document.getElementById('addUid').disabled = false
+	}
+	else
+	{
+		toTest = document.getElementById("lastTagUid").innerHTML;
+		if(toTest.length == 0)
+		{
+			document.getElementById('addUid').disabled = true;
+		}
 	}
 	
 	if (obj.hasOwnProperty('statutSerrureActuel'))
@@ -334,7 +357,10 @@
     </tr>
 	<tr>
       <td>Dernier tag scanné</td>
-      <td><span id="lastTagUid"></span></td>
+      <td>
+		<span id="lastTagUid"></span>&nbsp;&nbsp;
+		<button id='addUid' onclick="sendNewValue('addUid',1, false);">Add UID</button>
+	  </td>
     </tr>	
 	<tr>
       <td>Nombre Erreur Code Actuel : <span id="nbErreurCode" ></span>&nbsp;</td>

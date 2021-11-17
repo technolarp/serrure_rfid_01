@@ -180,7 +180,7 @@ void setup()
   */
   // CLIENT MODE POUR DEBUG
   const char* ssid = "MYDEBUG";
-  const char* password = "3V8WtBvJ";
+  const char* password = "--------";
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
 
@@ -454,15 +454,7 @@ void checkRfidTag()
     Serial.print(aPn532->uidLength);
     Serial.print(F("  "));
     
-    for (int i=0;i<aPn532->uidLength;i++)
-    {
-      Serial.print(aPn532->uid[i], HEX);
-      if (i<aPn532->uidLength-1)
-      {
-        Serial.print(":");
-      }
-    }
-    Serial.println("");
+    printTagUid();
 
     // check with store uid
     bool tagOK = false;
@@ -699,6 +691,35 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
         
         writeObjectConfig = true;
         sendObjectConfig = true;
+      }
+
+      if ( doc.containsKey("new_removeUid") && doc["new_removeUid"]==1 )
+      {
+        uint16_t tmpValeur = doc["new_removeUid"];
+        Serial.print(F("Remove tag UID: "));
+        Serial.println(tmpValeur);
+      }
+
+      if ( doc.containsKey("new_addUid") && doc["new_addUid"]==1 )
+      {
+        if (aConfig.objectConfig.nbTag<9)
+        {
+          Serial.print(F("Add tag UID: "));
+          printTagUid();
+          
+          for (uint8_t  i=0;i<aPn532->uidLength;i++)
+          {
+            aConfig.objectConfig.tagUid[aConfig.objectConfig.nbTag][i]=aPn532->uid[i];
+          }
+          aConfig.objectConfig.nbTag++;          
+
+          writeObjectConfig = true;
+          sendObjectConfig = true;
+        }
+        else
+        {
+          Serial.println(F("too much tags"));
+        }
       }
 
       if ( doc.containsKey("new_resetErreur") && doc["new_resetErreur"]==1 )
@@ -983,4 +1004,17 @@ void sendTagUid()
   toSend+= "]}";
 
   ws.textAll(toSend);
+}
+
+void printTagUid()
+{
+  for (int i=0;i<aPn532->uidLength;i++)
+  {
+    Serial.print(aPn532->uid[i], HEX);
+    if (i<aPn532->uidLength-1)
+    {
+      Serial.print(":");
+    }
+  }
+  Serial.println("");
 }
