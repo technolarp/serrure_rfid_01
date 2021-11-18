@@ -25,6 +25,12 @@
    ----------------------------------------------------------------------------
 */
 
+/* TODO
+ check ajout new uid
+ check taille uid variable
+ check bug taille donnees ndef longue
+ */
+
 #include <Arduino.h>
 
 // WIFI
@@ -171,24 +177,24 @@ void setup()
   // WIFI
   WiFi.disconnect(true);
   
-  /*
+  
   // AP MODE
   WiFi.mode(WIFI_AP_STA);
   WiFi.softAPConfig(aConfig.networkConfig.apIP, aConfig.networkConfig.apIP, aConfig.networkConfig.apNetMsk);
   WiFi.softAP(aConfig.networkConfig.apName, aConfig.networkConfig.apPassword);
   
-  */
+  /*
   // CLIENT MODE POUR DEBUG
   const char* ssid = "MYDEBUG";
-  const char* password = "--------";
+  const char* password = "ppppppp";
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
+  */
 
   if (WiFi.waitForConnectResult() != WL_CONNECTED) 
   {
     Serial.printf("WiFi Failed!\n");
   }
-  
   
   // WEB SERVER
   // Print ESP Local IP Address
@@ -325,7 +331,7 @@ void serrureFermee()
     aFastled->allLedOff();
     for (int i = 0; i < aConfig.objectConfig.activeLeds; i++)
     {
-      aFastled->setLed(i, CRGB::Red);
+      aFastled->setLed(i, aConfig.objectConfig.couleurs[0]);
     }
     aFastled->ledShow();
 
@@ -347,7 +353,7 @@ void serrureOuverte()
     aFastled->allLedOff();
     for (int i = 0; i < aConfig.objectConfig.activeLeds; i++)
     {
-      aFastled->setLed(i, CRGB::Green);
+      aFastled->setLed(i, aConfig.objectConfig.couleurs[1]);
     }
     aFastled->ledShow();
 
@@ -462,24 +468,12 @@ void checkRfidTag()
     for (uint8_t i=0;i<aConfig.objectConfig.nbTag;i++)
     {
       bool tagOK2 = true;
-      //Serial.print("i: ");
-      //Serial.println(i);
       for (uint8_t j=1;j<4;j++)
-      {
-//        Serial.print("j: ");
-//        Serial.print(j);
-//        Serial.print("  ");
-//        Serial.print(aPn532->uid[j]);
-//        Serial.print("/");
-//        Serial.print(aConfig.objectConfig.tagUid[i][j]);
-        
+      {        
         if ( (aPn532->uidLength>=4) && (aPn532->uid[j] != aConfig.objectConfig.tagUid[i][j]) )
         {
           tagOK2 = false;
-          //Serial.print(" result ");
-          //Serial.print(tagOK2);
         }
-       // Serial.println("");
       }
 
       if (tagOK2)
@@ -500,12 +494,29 @@ void checkRfidTag()
     }
     else
     {
+      // le tag n'est pas le bon
       Serial.println(F("mauvais tag"));
       buzzer->longBeep();
+
+      // on augmente le compteur de code faux
+      aConfig.objectConfig.nbErreurCode += 1;
+
+      aConfig.objectConfig.statutSerrurePrecedent = aConfig.objectConfig.statutSerrureActuel;
+
+      // on demarre l'anim faux code
+      aConfig.objectConfig.statutSerrureActuel = SERRURE_ERREUR;
+
+      uneFois = true;
     }
 
     // send uid 
     sendTagUid();
+
+    // ecrire la config sur littleFS
+    aConfig.writeObjectConfig("/config/objectconfig.txt");
+
+    // resend config object
+    ws.textAll(aConfig.stringJsonFile("/config/objectconfig.txt"));
   }
 }
 
@@ -543,6 +554,7 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 
         // send volatile info
         sendUptime();
+        sendStatutSerrure();
         
         break;
         
@@ -567,16 +579,17 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
   AwsFrameInfo *info = (AwsFrameInfo*)arg;
   if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) 
   {
-    char buffer[100];
+    char buffer[300];
     data[len] = 0;
     sprintf(buffer,"%s\n", (char*)data);
     Serial.print(buffer);
     
-    StaticJsonDocument<256> doc;
+    //StaticJsonDocument<256> doc;
+    DynamicJsonDocument doc(2048);
     DeserializationError error = deserializeJson(doc, buffer);
     if (error)
     {
-      Serial.println(F("Failed to deserialize buffer"));
+      Serial.println(F("Failed to deserialize buffer in websocket"));
     }
     else
     {
@@ -596,22 +609,7 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
         writeObjectConfig = true;
         sendObjectConfig = true;
       }
-
-      /*
-      if (doc.containsKey("new_codeSerrure")) 
-      {
-        strlcpy(  aConfig.objectConfig.codeSerrure,
-                  doc["new_codeSerrure"],
-                  sizeof(aConfig.objectConfig.codeSerrure));
-
-        // check for unsupported char
-        checkCharacter(aConfig.objectConfig.codeSerrure, "0123456789ABCD*", '0');
-        
-        writeObjectConfig = true;
-        sendObjectConfig = true;
-      }
-      */
-
+      
       if (doc.containsKey("new_objectId")) 
       {
         uint16_t tmpValeur = doc["new_objectId"];
@@ -652,17 +650,6 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
         sendObjectConfig = true;
       }
 
-      /*
-      if (doc.containsKey("new_tailleCode")) 
-      {
-        uint16_t tmpValeur = doc["new_tailleCode"];
-        aConfig.objectConfig.tailleCode = checkValeur(tmpValeur,1,8);
-        
-        writeObjectConfig = true;
-        sendObjectConfig = true;
-      }
-      */
-
       if (doc.containsKey("new_nbErreurCodeMax")) 
       {
         uint16_t tmpValeur = doc["new_nbErreurCodeMax"];
@@ -693,23 +680,67 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
         sendObjectConfig = true;
       }
 
-      if ( doc.containsKey("new_removeUid") && doc["new_removeUid"]==1 )
+      if ( doc.containsKey("new_removeUid") && doc["new_removeUid"]>=0 && doc["new_removeUid"]<10 )
       {
-        uint16_t tmpValeur = doc["new_removeUid"];
+        uint16_t uidToRemove = doc["new_removeUid"];
         Serial.print(F("Remove tag UID: "));
-        Serial.println(tmpValeur);
+        Serial.println(uidToRemove);
+        //Serial.println(aConfig.objectConfig.nbTag);
+
+        if (aConfig.objectConfig.nbTag>0)
+        {
+          for (uint8_t i=uidToRemove;i<aConfig.objectConfig.nbTag-1;i++)
+          {
+            for (uint8_t j=0;j<4;j++)
+            {
+              aConfig.objectConfig.tagUid[i][j]=aConfig.objectConfig.tagUid[i+1][j];
+            }
+          }
+  
+          aConfig.objectConfig.nbTag--;
+
+          Serial.println("done");
+  
+          writeObjectConfig = true;
+          sendObjectConfig = true;
+        }
       }
 
-      if ( doc.containsKey("new_addUid") && doc["new_addUid"]==1 )
+      if ( doc.containsKey("new_addLastUid") && doc["new_addLastUid"]==1 )
       {
-        if (aConfig.objectConfig.nbTag<9)
+        if (aConfig.objectConfig.nbTag<10)
         {
-          Serial.print(F("Add tag UID: "));
-          printTagUid();
+          Serial.println(F("Add last tag UID: "));
           
           for (uint8_t  i=0;i<aPn532->uidLength;i++)
           {
             aConfig.objectConfig.tagUid[aConfig.objectConfig.nbTag][i]=aPn532->uid[i];
+          }
+          aConfig.objectConfig.nbTag++;          
+
+          writeObjectConfig = true;
+          sendObjectConfig = true;
+        }
+        else
+        {
+          Serial.println(F("too much tags"));
+        }
+      }
+
+      if (doc.containsKey("new_newTagUid")) 
+      {
+        if (aConfig.objectConfig.nbTag<10)
+        {
+          Serial.println(F("Add new tag UID: "));
+
+          JsonArray newUidValue = doc["new_newTagUid"];
+            
+          for (uint8_t  i=0;i<aPn532->uidLength;i++)
+          {
+            String stringToConvert = newUidValue[i];
+            uint8_t hexValue = (uint8_t) strtol( &stringToConvert[0], NULL, 16);
+            
+            aConfig.objectConfig.tagUid[aConfig.objectConfig.nbTag][i]=hexValue;
           }
           aConfig.objectConfig.nbTag++;          
 
@@ -730,8 +761,32 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
         writeObjectConfig = true;
         sendObjectConfig = true;
       }
+
+      if (doc.containsKey("new_couleurs")) 
+        {
+          JsonArray newCouleur = doc["new_couleurs"];
+
+          uint8_t i = newCouleur[0];
+          String newColorStr = newCouleur[1];
+          
+          uint8_t r;
+          uint8_t g;
+          uint8_t b;
+          
+          convertStrToRGB(newColorStr,&r, &g, &b);
+          aConfig.objectConfig.couleurs[i].red=r;
+          aConfig.objectConfig.couleurs[i].green=g;
+          aConfig.objectConfig.couleurs[i].blue=b;
+          //convertStrToRGB(newColorStr,&aConfig.objectConfig.couleurs[i].red, &aConfig.objectConfig.couleurs[i].green, &aConfig.objectConfig.couleurs[i].blue);
+          uneFois=true;
+          
+          writeObjectConfig = true;
+          sendObjectConfig = true;
+        }
         
+      // **********************************************
       // modif network config
+      // **********************************************
       if (doc.containsKey("new_apName")) 
       {
         strlcpy(  aConfig.networkConfig.apName,
@@ -989,12 +1044,25 @@ void sendUptime()
   Serial.println(toSend);
 }
 
+void sendStatutSerrure()
+{
+  String toSend = "{\"statutSerrureActuel\":";
+  toSend+= aConfig.objectConfig.statutSerrureActuel;
+  toSend+= "}";
+
+  ws.textAll(toSend);
+}
+
 void sendTagUid()
 {
   String toSend = "{\"lastTagUid\":[";
   for (uint8_t i=0;i<aPn532->uidLength;i++)
   {
-    toSend+= "\"" + String(aPn532->uid[i], HEX) + "\"";
+    //toSend+= "\"" + String(aPn532->uid[i], HEX) + "\"";
+    // add leading zero
+    char result[3];
+    sprintf(result, "%02x", aPn532->uid[i]);
+    toSend+= "\"" + String(result) + "\"";
     if (i<aPn532->uidLength-1)
     {
       toSend+= ",";
@@ -1010,11 +1078,24 @@ void printTagUid()
 {
   for (int i=0;i<aPn532->uidLength;i++)
   {
-    Serial.print(aPn532->uid[i], HEX);
+    //Serial.print(aPn532->uid[i], HEX);
+    char result[3];
+    sprintf(result, "%02x", aPn532->uid[i]);
+    Serial.print(result);
     if (i<aPn532->uidLength-1)
     {
       Serial.print(":");
     }
   }
   Serial.println("");
+}
+
+void convertStrToRGB(String source, uint8_t* r, uint8_t* g, uint8_t* b)
+{
+  uint32_t  number = (uint32_t) strtol( &source[1], NULL, 16);
+  
+  // Split them up into r, g, b values
+  *r = number >> 16;
+  *g = number >> 8 & 0xFF;
+  *b = number & 0xFF;
 }

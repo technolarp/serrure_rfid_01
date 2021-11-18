@@ -1,14 +1,15 @@
 {
-	"objectId": 1,
-	"groupId": 1,
-	"objectName": "serrure clavier",
-	"activeLeds": 8,
-    "brightness": 80,
-	"nbErreurCodeMax": 3,
-	"nbErreurCode": 0,
-	"delaiBlocage": 5,
-	"statutSerrureActuel": 1,
-	"statutSerrurePrecedent": 1,
-	"nbTag": 2,	
-	"tagUid":[["C0", "E6", "2F", "25"],["D3", "C5", "49", "16"]]
+"objectName":"serrure rfid",
+"objectId":1,
+"groupId":1,
+"activeLeds":8,
+"brightness":80,
+"couleurs":[[255,0,0],[0,255,0]],
+"nbErreurCodeMax":3,
+"nbErreurCode":0,
+"delaiBlocage":5,
+"statutSerrureActuel":1,
+"statutSerrurePrecedent":1,
+"nbTag":1,
+"tagUid":[["01","02","03","04"]]
 }

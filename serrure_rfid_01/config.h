@@ -5,7 +5,10 @@
 #define SIZE_ARRAY 20
 #define MAX_SIZE_CODE 9
 
+#define JSONBUFFERSIZE 2048
+
 #include <IPAddress.h>
+#include <FastLED.h>
 
 class M_config
 {
@@ -28,6 +31,8 @@ class M_config
 
     uint8_t nbTag;
     uint8_t tagUid[10][4];
+
+    CRGB couleurs[2];
   };
   
   // creer une structure
@@ -68,13 +73,14 @@ class M_config
       Serial.println(F("Failed to open file for reading"));
     }
       
-    StaticJsonDocument<1024> doc;
+    //StaticJsonDocument<2048> doc;
+    DynamicJsonDocument doc(JSONBUFFERSIZE);
     
     // Deserialize the JSON document
     DeserializationError error = deserializeJson(doc, file);
     if (error)
     {
-      Serial.println(F("Failed to deserialize file"));
+      Serial.println(F("Failed to deserialize file in print object"));
       Serial.println(error.c_str());
     }
     else
@@ -126,13 +132,14 @@ class M_config
       Serial.println(F("File opened"));
     }
   
-    StaticJsonDocument<1024> doc;
+    //StaticJsonDocument<4096> doc;
+    DynamicJsonDocument doc(JSONBUFFERSIZE);
     
 	  // Deserialize the JSON document
     DeserializationError error = deserializeJson(doc, file);
     if (error)
     {
-      Serial.println(F("Failed to deserialize file"));
+      Serial.println(F("Failed to deserialize file in read object"));
       Serial.println(error.c_str());
     }
     else
@@ -148,8 +155,6 @@ class M_config
   		objectConfig.statutSerrureActuel = doc["statutSerrureActuel"];
   		objectConfig.statutSerrurePrecedent = doc["statutSerrurePrecedent"];
 
-      objectConfig.nbTag = doc["nbTag"];
-
   		if (doc.containsKey("objectName"))
   		{ 
   			strlcpy(  objectConfig.objectName,
@@ -158,8 +163,9 @@ class M_config
   		}
   		
   		if ( (doc.containsKey("tagUid")) && (doc.containsKey("nbTag")) )
-  		{ 
+  		{
   			JsonArray tagUidArray=doc["tagUid"];
+        objectConfig.nbTag = doc["nbTag"];
        
   			for (uint8_t i=0;i<objectConfig.nbTag;i++)
         {
@@ -167,16 +173,26 @@ class M_config
 
           for (uint8_t j=0;j<4;j++)
           {
-            
-            String stringtoConvert = uidArray[j];            
-            uint8_t hexValue = (uint8_t) strtol( &stringtoConvert[0], NULL, 16);
+            String stringToConvert = uidArray[j];
+            uint8_t hexValue = (uint8_t) strtol( &stringToConvert[0], NULL, 16);
             objectConfig.tagUid[i][j] = hexValue;
-            Serial.print(hexValue,HEX);
-            Serial.print(" ");
           }
-          Serial.println(" ");
         }
   		}
+
+     if (doc.containsKey("couleurs"))
+      {
+        JsonArray couleurArray=doc["couleurs"];
+        
+        for (uint8_t i=0;i<2;i++)
+        {
+          JsonArray rgbArray=couleurArray[i];
+
+          objectConfig.couleurs[i].red = rgbArray[0];
+          objectConfig.couleurs[i].green = rgbArray[1];
+          objectConfig.couleurs[i].blue =  rgbArray[2];
+        }        
+      }
     }
   		
     // Close the file (File's destructor doesn't close the file)
@@ -204,7 +220,7 @@ class M_config
     DeserializationError error = deserializeJson(doc, file);
     if (error)
     {
-      Serial.println(F("Failed to deserialize file"));
+      Serial.println(F("Failed to deserialize file in read network "));
       Serial.println(error.c_str());
     }
     else
@@ -263,7 +279,7 @@ class M_config
     }
 
     // Allocate a temporary JsonDocument
-    StaticJsonDocument<1024> doc;
+    StaticJsonDocument<JSONBUFFERSIZE> doc;
 
     doc["objectId"] = objectConfig.objectId;
     doc["groupId"] = objectConfig.groupId;
@@ -277,34 +293,48 @@ class M_config
 
     doc["nbTag"] = objectConfig.nbTag;
     
-    //uint8_t tagUid[10][4];
-    
-    StaticJsonDocument<512> docUidAll;
+    StaticJsonDocument<JSONBUFFERSIZE> docUidAll;
     JsonArray arrayUidAll = docUidAll.to<JsonArray>();
     
     for (uint8_t i=0;i<objectConfig.nbTag;i++)
     {
-      StaticJsonDocument<128> docCouleur;
-      JsonArray arrayUid = docCouleur.to<JsonArray>();
+      StaticJsonDocument<128> docUid;
+      JsonArray arrayUid = docUid.to<JsonArray>();
       
       for (uint8_t j=0;j<4;j++)
       {
-        arrayUid.add(String(objectConfig.tagUid[i][j],HEX));
+        char result[3];
+        sprintf(result, "%02x", objectConfig.tagUid[i][j]);
+        arrayUid.add(String(result));
       }
       
       arrayUidAll.add(arrayUid);
     }
     doc["tagUid"]=arrayUidAll;
-    serializeJsonPretty(doc, Serial);
     
     
-    String newObjectName="";
+    StaticJsonDocument<512> docCouleurAll;
+    JsonArray arrayCouleurAll = docCouleurAll.to<JsonArray>();
     
+    for (uint8_t i=0;i<2;i++)
+    {
+      StaticJsonDocument<64> docCouleur;
+      JsonArray arrayCouleur = docCouleur.to<JsonArray>();
+      arrayCouleur.add(objectConfig.couleurs[i].red);
+      arrayCouleur.add(objectConfig.couleurs[i].green);
+      arrayCouleur.add(objectConfig.couleurs[i].blue);
+      
+      arrayCouleurAll.add(arrayCouleur);
+    }
+
+    doc["couleurs"]=arrayCouleurAll;
+    
+    
+    String newObjectName="";    
     for (int i=0;i<SIZE_ARRAY;i++)
     {
       newObjectName+= objectConfig.objectName[i];
-    }
-    
+    }    
     doc["objectName"] = newObjectName;
     
 
@@ -385,11 +415,23 @@ class M_config
 	objectConfig.statutSerrureActuel = 1;
 	objectConfig.statutSerrurePrecedent = 1;
 
-  objectConfig.nbTag = 2; 
+  objectConfig.nbTag = 1;
+  objectConfig.tagUid[0][0]=1;
+  objectConfig.tagUid[0][1]=2;
+  objectConfig.tagUid[0][2]=3;
+  objectConfig.tagUid[0][3]=4;
+
+  objectConfig.couleurs[0].red = 255;
+  objectConfig.couleurs[0].green = 0;
+  objectConfig.couleurs[0].blue =  0;
+  
+  objectConfig.couleurs[1].red = 0;
+  objectConfig.couleurs[1].green = 255;
+  objectConfig.couleurs[1].blue =  0;
 	
 	strlcpy(  objectConfig.objectName,
   			          "serrure rfid",
-  			          sizeof("serrure"));
+  			          sizeof("serrure rfid"));
 	
 	writeObjectConfig(filename);
   }
@@ -428,13 +470,14 @@ class M_config
       Serial.println(F("Failed to open file for reading"));
     }
       
-    StaticJsonDocument<1024> doc;
+    //StaticJsonDocument<1024> doc;
+    DynamicJsonDocument doc(JSONBUFFERSIZE);
     
     // Deserialize the JSON document
     DeserializationError error = deserializeJson(doc, file);
     if (error)
     {
-      Serial.println(F("Failed to deserialize file"));
+      Serial.println(F("Failed to deserialize file in json file"));
       Serial.println(error.c_str());
     }
     else

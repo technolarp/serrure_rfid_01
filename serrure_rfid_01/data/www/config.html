@@ -12,6 +12,9 @@
 	</head>
 	<script>
   lastHeartBeat = Date.now();
+  
+  // leading zero convertor
+  const zeroPad = (num, places) => String(num).padStart(places, '0')
 
   function checkHeartbeat()
   {
@@ -25,7 +28,7 @@
   setInterval(checkHeartbeat, 10000);
   
   var gateway = `ws://${window.location.hostname}/ws`;
-  //var gateway = `ws://192.168.3.199/ws`;
+  
   var websocket;
   window.addEventListener('load', onLoad);
   
@@ -89,6 +92,18 @@
       document.getElementById("activeLeds").value = obj.activeLeds;
     }
 	
+	if (obj.hasOwnProperty('couleurs'))
+    {
+      for (let i = 0; i < 2 ; i++)
+	  {
+		j=i+1;
+		couleurToChange = 'couleur'+j;
+		newColor="#" + zeroPad(obj.couleurs[i][0].toString(16), 2) + zeroPad(obj.couleurs[i][1].toString(16), 2) + zeroPad(obj.couleurs[i][2].toString(16), 2);
+		document.getElementById(couleurToChange).value = newColor;
+		//console.log(newColor);
+	  }
+    }
+	
 	if (obj.hasOwnProperty('brightness'))
     {
       document.getElementById("brightness").value = obj.brightness;
@@ -129,7 +144,7 @@
 		document.getElementById(tagName).disabled = false;
 		document.getElementById(buttonName).disabled = false;
 				
-		document.getElementById(tagName).innerHTML=uid;
+		document.getElementById(tagName).innerHTML=uid.toUpperCase();
 		document.getElementById(buttonName).innerHTML='&#10060;';
 	  }
 	  document.getElementById("nbTag").innerHTML = obj.nbTag;
@@ -159,14 +174,14 @@
 		}
 		
 		document.getElementById("lastTagUid").innerHTML=newUid.toUpperCase();
-		document.getElementById('addUid').disabled = false
+		document.getElementById('addLastUid').disabled = false
 	}
 	else
 	{
 		toTest = document.getElementById("lastTagUid").innerHTML;
 		if(toTest.length == 0)
 		{
-			document.getElementById('addUid').disabled = true;
+			document.getElementById('addLastUid').disabled = true;
 		}
 	}
 	
@@ -281,11 +296,20 @@
     }
   }
   
+  function sendNewUid(uidString)
+  {
+		console.log(uidString);
+		uid=uidString.split(':');
+		newUid = '[\"' + uid[0] + '\",\"' + uid[1] + '\",\"' + uid[2] + '\",\"' + uid[3] + '\"]';
+		console.log(newUid);
+		sendNewValue('newTagUid',newUid, false);
+  }
+  
   
   
   </script>  
 	<body>
-	<table>
+	<table width=600>
     <tr>
       <td colspan="2"><h2>%OBJECTNAME% Back Office</h2></td>
     </tr>
@@ -301,23 +325,15 @@
       <td>Group ID </td>
       <td><input type="number" id="groupId" name="groupId" min="1" max="1000" onchange="sendNewValue('groupId',document.getElementById('groupId').value, false);"> &nbsp; &nbsp; &nbsp; &nbsp; 1 - 1000</td>
     </tr>
-    <tr>
-      <td>ActiveLeds </td>
-      <td><input type="number" id="activeLeds" name="activeLeds" min="1" max="24" onchange="sendNewValue('activeLeds',document.getElementById('activeLeds').value, false);"> &nbsp; &nbsp; &nbsp; &nbsp;  1 - %MAXLEDS%</td>
-    </tr>
-    <tr>
-      <td>Brightness : <span id="brightness2"></span></td>
-      <td><input class="enabled" id="brightness" name="brightness" type="range" min="0" max="255" step="5" onChange="sendNewValue('brightness',document.getElementById('brightness').value, false);"></td>
-    </tr>
 	<tr>
       <td>Tags (<span id="nbTag"></span>/10)</td>
       <td>
-		<table width="100%">
+		<table width="400px">
 		<tr>
-		<td width="50%">
+		<td width="200px">
 		0:&nbsp;&nbsp;<span id="tagUid_0"></span>&nbsp;&nbsp;<button id='removeUidBut_0' onclick="sendNewValue('removeUid',0, false);">&#10060;</button>
 		</td>
-		<td width="50%">
+		<td width="200px">
 		5:&nbsp;&nbsp;<span id="tagUid_5"></span>&nbsp;&nbsp;<button id='removeUidBut_5' onclick="sendNewValue('removeUid',5, false);">&#10060;</button>
 		</td>
 		</tr>
@@ -359,7 +375,14 @@
       <td>Dernier tag scanné</td>
       <td>
 		<span id="lastTagUid"></span>&nbsp;&nbsp;
-		<button id='addUid' onclick="sendNewValue('addUid',1, false);">Add UID</button>
+		<button id='addLastUid' onclick="sendNewValue('addLastUid',1, false);">Add last UID</button>
+	  </td>
+    </tr>
+	<tr>
+      <td>Nouveau tag</td>
+      <td>
+		<input type="text" id="newTagUid" name="newTagUid"> 
+		<button id='addNewUid' onclick="sendNewUid(document.getElementById('newTagUid').value);">Add new UID</button>
 	  </td>
     </tr>	
 	<tr>
@@ -386,6 +409,24 @@
       <td>Statuts Serrure</td>
       <td>statut Serrure Precedent : <span id="statutSerrurePrecedent"></span><br>statut Serrure Actuel : <span id="statutSerrureActuel"></span></td>
     </tr>
+	<tr>
+      <td>ActiveLeds </td>
+      <td><input type="number" id="activeLeds" name="activeLeds" min="1" max="24" onchange="sendNewValue('activeLeds',document.getElementById('activeLeds').value, false);"> &nbsp; &nbsp; &nbsp; &nbsp;  1 - %MAXLEDS%</td>
+    </tr>
+    <tr>
+      <td>Brightness : <span id="brightness2"></span></td>
+      <td><input class="enabled" id="brightness" name="brightness" type="range" min="0" max="255" step="5" onChange="sendNewValue('brightness',document.getElementById('brightness').value, false);"></td>
+    </tr>
+	<tr>
+      <td>Couleur fermee</td>
+      <td><input type="color" id="couleur1" name="couleur1" onchange="sendNewValue('couleurs','[0,&#34;'+this.value+'&#34;]', false);"></td>
+    </tr>
+	<tr>
+      <td>Couleur ouverte</td>
+      <td><input type="color" id="couleur2" name="couleur2" onchange="sendNewValue('couleurs','[1,&#34;'+this.value+'&#34;]', false);"></td>
+    </tr>
+	</table>
+	<table width=600>
 	<tr>
       <td colspan="2"><h2>%APNAME% Network config</h2></td>
     </tr>
