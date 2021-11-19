@@ -29,6 +29,7 @@
  check ajout new uid
  check taille uid variable
  check bug taille donnees ndef longue
+ cleanup code
  */
 
 #include <Arduino.h>
