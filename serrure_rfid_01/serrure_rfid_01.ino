@@ -43,6 +43,9 @@ AsyncWebServer server(80);
 // WEBSOCKET
 AsyncWebSocket ws("/ws");
 
+char bufferWebsocket[300];
+bool flagBufferWebsocket = false;
+
 // TASK SCHEDULER
 #define _TASK_OO_CALLBACKS
 #include <TaskScheduler.h>
@@ -64,6 +67,9 @@ M_buzzer* buzzer;
 // CONFIG
 #include "config.h"
 M_config aConfig;
+
+char bufferToSend[500];
+char bufferUid[12];
 
 // CODE ACTUEL DE LA SERRURE
 char codeSerrureActuel[8] = {'0', '0', '0', '0', '0', '0', '0', '0'};
@@ -178,19 +184,19 @@ void setup()
   // WIFI
   WiFi.disconnect(true);
   
-  
+  /*
   // AP MODE
   WiFi.mode(WIFI_AP_STA);
   WiFi.softAPConfig(aConfig.networkConfig.apIP, aConfig.networkConfig.apIP, aConfig.networkConfig.apNetMsk);
   WiFi.softAP(aConfig.networkConfig.apName, aConfig.networkConfig.apPassword);
+  */
   
-  /*
   // CLIENT MODE POUR DEBUG
   const char* ssid = "MYDEBUG";
-  const char* password = "ppppppp";
+  const char* password = "3V8WtBvJ";
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-  */
+  
 
   if (WiFi.waitForConnectResult() != WL_CONNECTED) 
   {
@@ -205,7 +211,7 @@ void setup()
   Serial.println(WiFi.softAPIP());
 
   // Route for root / web page
-  server.serveStatic("/", LittleFS, "/www/").setDefaultFile("config.html").setTemplateProcessor(processor);
+  server.serveStatic("/", LittleFS, "/www/").setDefaultFile("config.html");
   server.serveStatic("/config", LittleFS, "/config/");
   server.onNotFound(notFound);
 
@@ -224,7 +230,7 @@ void setup()
   currentMillisHB = millis();
   previousMillisHB = currentMillisHB;
   intervalHB = 5000;
-
+  
   // SERIAL
   Serial.println(F(""));
   Serial.println(F(""));
@@ -259,7 +265,7 @@ void loop()
   aPn532->updateRFID();
 
   // gerer le statut de la serrure
-  switch (aConfig.objectConfig.statutSerrureActuel)
+  switch (aConfig.objectConfig.statutActuel)
   {
     case SERRURE_FERMEE:
       // la serrure est fermee
@@ -296,6 +302,13 @@ void loop()
       break;
   }
 
+  // traite le buffer du websocket
+  if (flagBufferWebsocket)
+  {
+    flagBufferWebsocket = false;
+    handleWebsocketBuffer();
+  }
+  
   // HEARTBEAT
   currentMillisHB = millis();
   if(currentMillisHB - previousMillisHB > intervalHB)
@@ -384,18 +397,18 @@ void serrureErreur()
     if (aConfig.objectConfig.nbErreurCode >= aConfig.objectConfig.nbErreurCodeMax)
     {
       // on bloque la serrure
-      aConfig.objectConfig.statutSerrureActuel = SERRURE_BLOQUEE;
+      aConfig.objectConfig.statutActuel = SERRURE_BLOQUEE;
     }
     else
     {
-      aConfig.objectConfig.statutSerrureActuel = aConfig.objectConfig.statutSerrurePrecedent;
+      aConfig.objectConfig.statutActuel = aConfig.objectConfig.statutPrecedent;
     }
 
     // ecrire la config sur littleFS
     aConfig.writeObjectConfig("/config/objectconfig.txt");
 
     // resend config object
-    ws.textAll(aConfig.stringJsonFile("/config/objectconfig.txt"));
+    sendObjectConfig();
   }
 }
 
@@ -411,16 +424,17 @@ void serrureBloquee()
   {
     Serial.print(F("END TASK BLOCAGE "));
     Serial.println();
-    aConfig.objectConfig.statutSerrureActuel = aConfig.objectConfig.statutSerrurePrecedent;
+    aConfig.objectConfig.statutActuel = aConfig.objectConfig.statutPrecedent;
     aConfig.objectConfig.nbErreurCode = 0;
 
     uneFois = true;
 
     // ecrire la config sur littleFS
-    aConfig.writeObjectConfig("/config/objectconfig.txt");
+    writeObjectConfig();
+    //aConfig.writeObjectConfig("/config/objectconfig.txt");
     
     // resend config object
-    ws.textAll(aConfig.stringJsonFile("/config/objectconfig.txt"));
+    sendObjectConfig();
   }
 }
 
@@ -441,13 +455,13 @@ void serrureBlink()
     uneFois = true;
 
     // retour au statut precedent
-    aConfig.objectConfig.statutSerrureActuel = aConfig.objectConfig.statutSerrurePrecedent;
+    aConfig.objectConfig.statutActuel = aConfig.objectConfig.statutPrecedent;
     
     // ecrire la config sur littleFS
-    aConfig.writeObjectConfig("/config/objectconfig.txt");
+    writeObjectConfig();
 
     // resend config object
-    ws.textAll(aConfig.stringJsonFile("/config/objectconfig.txt"));
+    sendObjectConfig();
   }
 }
 
@@ -466,7 +480,7 @@ void checkRfidTag()
     // check with store uid
     bool tagOK = false;
     
-    for (uint8_t i=0;i<aConfig.objectConfig.nbTag;i++)
+    for (uint8_t i=0;i<aConfig.objectConfig.nbTagActuel;i++)
     {
       bool tagOK2 = true;
       for (uint8_t j=1;j<4;j++)
@@ -488,7 +502,7 @@ void checkRfidTag()
     {
       buzzer->shortBeep();
 
-      aConfig.objectConfig.statutSerrureActuel = !aConfig.objectConfig.statutSerrureActuel;
+      aConfig.objectConfig.statutActuel = !aConfig.objectConfig.statutActuel;
       aConfig.objectConfig.nbErreurCode = 0;
       uneFois = true;
       Serial.println(F("tag OK, change lock status"));
@@ -502,10 +516,10 @@ void checkRfidTag()
       // on augmente le compteur de code faux
       aConfig.objectConfig.nbErreurCode += 1;
 
-      aConfig.objectConfig.statutSerrurePrecedent = aConfig.objectConfig.statutSerrureActuel;
+      aConfig.objectConfig.statutPrecedent = aConfig.objectConfig.statutActuel;
 
       // on demarre l'anim faux code
-      aConfig.objectConfig.statutSerrureActuel = SERRURE_ERREUR;
+      aConfig.objectConfig.statutActuel = SERRURE_ERREUR;
 
       uneFois = true;
     }
@@ -514,32 +528,11 @@ void checkRfidTag()
     sendTagUid();
 
     // ecrire la config sur littleFS
-    aConfig.writeObjectConfig("/config/objectconfig.txt");
+    writeObjectConfig();
 
     // resend config object
-    ws.textAll(aConfig.stringJsonFile("/config/objectconfig.txt"));
+    sendObjectConfig();
   }
-}
-
-
-String processor(const String& var)
-{  
-  if (var == "MAXLEDS")
-  {
-    return String(aFastled->getNbMaxLed());
-  }
-
-  if (var == "APNAME")
-  {
-    return String(aConfig.networkConfig.apName);
-  }
-
-  if (var == "OBJECTNAME")
-  {
-    return String(aConfig.objectConfig.objectName);
-  }
-   
-  return String();
 }
 
 
@@ -550,12 +543,13 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
       case WS_EVT_CONNECT:
         Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
         // send config value to html
-        ws.textAll(aConfig.stringJsonFile("/config/objectconfig.txt"));
-        ws.textAll(aConfig.stringJsonFile("/config/networkconfig.txt"));
-
+        sendObjectConfig();
+        sendNetworkConfig();
+        
         // send volatile info
         sendUptime();
-        sendStatutSerrure();
+        sendStatut();
+        sendMaxLed();
         
         break;
         
@@ -580,14 +574,19 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
   AwsFrameInfo *info = (AwsFrameInfo*)arg;
   if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) 
   {
-    char buffer[300];
     data[len] = 0;
-    sprintf(buffer,"%s\n", (char*)data);
-    Serial.print(buffer);
+    sprintf(bufferWebsocket,"%s\n", (char*)data);
+    Serial.print(len);
+    Serial.print(bufferWebsocket);
+    flagBufferWebsocket = true;
+  }
+}
+
+void handleWebsocketBuffer()
+{
+    DynamicJsonDocument doc(JSONBUFFERSIZE);
     
-    //StaticJsonDocument<256> doc;
-    DynamicJsonDocument doc(2048);
-    DeserializationError error = deserializeJson(doc, buffer);
+    DeserializationError error = deserializeJson(doc, bufferWebsocket);
     if (error)
     {
       Serial.println(F("Failed to deserialize buffer in websocket"));
@@ -595,10 +594,10 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
     else
     {
       // write config or not
-      bool writeObjectConfig = false;
-      bool sendObjectConfig = false;
-      bool writeNetworkConfig = false;
-      bool sendNetworkConfig = false;
+      bool writeObjectConfigFlag = false;
+      bool sendObjectConfigFlag = false;
+      bool writeNetworkConfigFlag = false;
+      bool sendNetworkConfigFlag = false;
       
       // modif object config
       if (doc.containsKey("new_objectName"))
@@ -607,8 +606,8 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
                   doc["new_objectName"],
                   sizeof(aConfig.objectConfig.objectName));
 
-        writeObjectConfig = true;
-        sendObjectConfig = true;
+        writeObjectConfigFlag = true;
+        sendObjectConfigFlag = true;
       }
       
       if (doc.containsKey("new_objectId")) 
@@ -616,8 +615,8 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
         uint16_t tmpValeur = doc["new_objectId"];
         aConfig.objectConfig.objectId = checkValeur(tmpValeur,1,1000);
 
-        writeObjectConfig = true;
-        sendObjectConfig = true;
+        writeObjectConfigFlag = true;
+        sendObjectConfigFlag = true;
       }
 
       if (doc.containsKey("new_groupId")) 
@@ -625,8 +624,8 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
         uint16_t tmpValeur = doc["new_groupId"];
         aConfig.objectConfig.groupId = checkValeur(tmpValeur,1,1000);
         
-        writeObjectConfig = true;
-        sendObjectConfig = true;
+        writeObjectConfigFlag = true;
+        sendObjectConfigFlag = true;
       }
 
       if (doc.containsKey("new_activeLeds")) 
@@ -637,8 +636,8 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
         aConfig.objectConfig.activeLeds = checkValeur(tmpValeur,1,aFastled->getNbMaxLed());
         aFastled->setNbLed(aConfig.objectConfig.activeLeds);
         
-        writeObjectConfig = true;
-        sendObjectConfig = true;
+        writeObjectConfigFlag = true;
+        sendObjectConfigFlag = true;
       }
 
       if (doc.containsKey("new_brightness"))
@@ -647,8 +646,8 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
         aConfig.objectConfig.brightness = checkValeur(tmpValeur,0,255);
         aFastled->setBrightness(aConfig.objectConfig.brightness);
         
-        writeObjectConfig = true;
-        sendObjectConfig = true;
+        writeObjectConfigFlag = true;
+        sendObjectConfigFlag = true;
       }
 
       if (doc.containsKey("new_nbErreurCodeMax")) 
@@ -656,8 +655,8 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
         uint16_t tmpValeur = doc["new_nbErreurCodeMax"];
         aConfig.objectConfig.nbErreurCodeMax = checkValeur(tmpValeur,1,50);
         
-        writeObjectConfig = true;
-        sendObjectConfig = true;
+        writeObjectConfigFlag = true;
+        sendObjectConfigFlag = true;
       }
       
       if (doc.containsKey("new_delaiBlocage")) 
@@ -665,62 +664,56 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
         uint16_t tmpValeur = doc["new_delaiBlocage"];
         aConfig.objectConfig.delaiBlocage = checkValeur(tmpValeur,5,300);
         
-        writeObjectConfig = true;
-        sendObjectConfig = true;
+        writeObjectConfigFlag = true;
+        sendObjectConfigFlag = true;
       }
       
-      if (doc.containsKey("new_statutSerrureActuel"))
+      if (doc.containsKey("new_statutActuel"))
       {
-        aConfig.objectConfig.statutSerrurePrecedent = aConfig.objectConfig.statutSerrureActuel;
-        aConfig.objectConfig.statutSerrureActuel = doc["new_statutSerrureActuel"];
+        aConfig.objectConfig.statutPrecedent = aConfig.objectConfig.statutActuel;
+        aConfig.objectConfig.statutActuel = doc["new_statutActuel"];
 
         aFastled->disable();
         aFastled->setAnim(0);
         
-        writeObjectConfig = true;
-        sendObjectConfig = true;
+        writeObjectConfigFlag = true;
+        sendObjectConfigFlag = true;
       }
 
-      if ( doc.containsKey("new_removeUid") && doc["new_removeUid"]>=0 && doc["new_removeUid"]<10 )
+      if (doc.containsKey("new_nbTagStock")) 
+      {
+        uint16_t tmpValeur = doc["new_nbTagStock"];
+        aConfig.objectConfig.nbTagStock = checkValeur(tmpValeur,1,5);
+        aConfig.objectConfig.nbTagActuel=min<uint8_t>(aConfig.objectConfig.nbTagActuel,aConfig.objectConfig.nbTagStock);
+        
+        writeObjectConfigFlag = true;
+        sendObjectConfigFlag = true;
+      }
+    
+      if ( doc.containsKey("new_removeUid") && doc["new_removeUid"]>=0 && doc["new_removeUid"]<MAX_NB_TAG )
       {
         uint16_t uidToRemove = doc["new_removeUid"];
         Serial.print(F("Remove tag UID: "));
         Serial.println(uidToRemove);
-        //Serial.println(aConfig.objectConfig.nbTag);
-
-        if (aConfig.objectConfig.nbTag>0)
-        {
-          for (uint8_t i=uidToRemove;i<aConfig.objectConfig.nbTag-1;i++)
-          {
-            for (uint8_t j=0;j<4;j++)
-            {
-              aConfig.objectConfig.tagUid[i][j]=aConfig.objectConfig.tagUid[i+1][j];
-            }
-          }
-  
-          aConfig.objectConfig.nbTag--;
-
-          Serial.println("done");
-  
-          writeObjectConfig = true;
-          sendObjectConfig = true;
-        }
+    
+        removeUid(uidToRemove);
+    
+        writeObjectConfigFlag = true;
+        sendObjectConfigFlag = true;
       }
 
       if ( doc.containsKey("new_addLastUid") && doc["new_addLastUid"]==1 )
       {
-        if (aConfig.objectConfig.nbTag<10)
+        if (aConfig.objectConfig.nbTagActuel<MAX_NB_TAG)
         {
-          Serial.println(F("Add last tag UID: "));
-          
-          for (uint8_t  i=0;i<aPn532->uidLength;i++)
+          for (uint8_t  i=0;i<SIZE_UID;i++)
           {
-            aConfig.objectConfig.tagUid[aConfig.objectConfig.nbTag][i]=aPn532->uid[i];
+            aConfig.objectConfig.tagUid[aConfig.objectConfig.nbTagActuel][i]=aPn532->uid[i];
           }
-          aConfig.objectConfig.nbTag++;          
+          aConfig.objectConfig.nbTagActuel++;          
 
-          writeObjectConfig = true;
-          sendObjectConfig = true;
+          writeObjectConfigFlag = true;
+          sendObjectConfigFlag = true;
         }
         else
         {
@@ -730,23 +723,22 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
 
       if (doc.containsKey("new_newTagUid")) 
       {
-        if (aConfig.objectConfig.nbTag<10)
+        if (aConfig.objectConfig.nbTagActuel<MAX_NB_TAG)
         {
-          Serial.println(F("Add new tag UID: "));
-
           JsonArray newUidValue = doc["new_newTagUid"];
             
-          for (uint8_t  i=0;i<aPn532->uidLength;i++)
+          for (uint8_t  i=0;i<SIZE_UID;i++)
           {
-            String stringToConvert = newUidValue[i];
-            uint8_t hexValue = (uint8_t) strtol( &stringToConvert[0], NULL, 16);
+            const char* tagUid_0 = newUidValue[i];
+            uint8_t hexValue = (uint8_t) strtol( &tagUid_0[0], NULL, 16);
             
-            aConfig.objectConfig.tagUid[aConfig.objectConfig.nbTag][i]=hexValue;
+            aConfig.objectConfig.tagUid[aConfig.objectConfig.nbTagActuel][i]=hexValue;
+            aPn532->uid[i]=hexValue;
           }
-          aConfig.objectConfig.nbTag++;          
+          aConfig.objectConfig.nbTagActuel++;          
 
-          writeObjectConfig = true;
-          sendObjectConfig = true;
+          writeObjectConfigFlag = true;
+          sendObjectConfigFlag = true;
         }
         else
         {
@@ -759,8 +751,8 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
         Serial.println(F("Reset erreurs"));
         aConfig.objectConfig.nbErreurCode = 0;
 
-        writeObjectConfig = true;
-        sendObjectConfig = true;
+        writeObjectConfigFlag = true;
+        sendObjectConfigFlag = true;
       }
 
       if (doc.containsKey("new_couleurs")) 
@@ -781,8 +773,8 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
           //convertStrToRGB(newColorStr,&aConfig.objectConfig.couleurs[i].red, &aConfig.objectConfig.couleurs[i].green, &aConfig.objectConfig.couleurs[i].blue);
           uneFois=true;
           
-          writeObjectConfig = true;
-          sendObjectConfig = true;
+          writeObjectConfigFlag = true;
+          sendObjectConfigFlag = true;
         }
         
       // **********************************************
@@ -797,8 +789,8 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
         // check for unsupported char
         checkCharacter(aConfig.networkConfig.apName, "ABCDEFGHIJKLMNOPQRSTUVWYZ", 'A');
         
-        writeNetworkConfig = true;
-        sendNetworkConfig = true;
+        writeNetworkConfigFlag = true;
+        sendNetworkConfigFlag = true;
       }
 
       if (doc.containsKey("new_apPassword")) 
@@ -807,7 +799,7 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
                   doc["new_apPassword"],
                   sizeof(aConfig.networkConfig.apPassword));
 
-        writeNetworkConfig = true;
+        writeNetworkConfigFlag = true;
       }
 
       if (doc.containsKey("new_apIP")) 
@@ -824,10 +816,10 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
           Serial.println("valid IP");
           aConfig.networkConfig.apIP = newIP;
 
-          writeNetworkConfig = true;
+          writeNetworkConfigFlag = true;
         }
         
-        sendNetworkConfig = true;
+        sendNetworkConfigFlag = true;
       }
 
       if (doc.containsKey("new_apNetMsk")) 
@@ -844,10 +836,10 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
           Serial.println("valid netmask");
           aConfig.networkConfig.apNetMsk = newNM;
 
-          writeNetworkConfig = true;
+          writeNetworkConfigFlag = true;
         }
 
-        sendNetworkConfig = true;
+        sendNetworkConfigFlag = true;
       }
 
       if ( doc.containsKey("new_defaultObjectConfig") && doc["new_defaultObjectConfig"]==1 )
@@ -855,7 +847,7 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
         Serial.println(F("reset to default object config"));
         aConfig.writeDefaultObjectConfig("/config/objectconfig.txt");
         
-        sendObjectConfig = true;
+        sendObjectConfigFlag = true;
         uneFois = true;
       }
 
@@ -864,7 +856,7 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
         Serial.println(F("reset to default network config"));
         aConfig.writeDefaultNetworkConfig("/config/networkconfig.txt");
         
-        sendNetworkConfig = true;
+        sendNetworkConfigFlag = true;
       }
       
       // actions sur le esp8266
@@ -877,44 +869,41 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
       if ( doc.containsKey("new_refresh") && doc["new_refresh"]==1 )
       {
         Serial.println(F("REFRESH"));
-        sendObjectConfig = true;
-        sendNetworkConfig = true;
+        sendObjectConfigFlag = true;
+        sendNetworkConfigFlag = true;
       }
 
       // modif config
       // write object config
-      if (writeObjectConfig)
+      if (writeObjectConfigFlag)
       {
-        aConfig.writeObjectConfig("/config/objectconfig.txt");
-        //aConfig.printJsonFile("/config/objectconfig.txt");
+        writeObjectConfig();
         
         // update statut
         uneFois = true;
       }
 
       // resend object config
-      if (sendObjectConfig)
+      if (sendObjectConfigFlag)
       {
-        ws.textAll(aConfig.stringJsonFile("/config/objectconfig.txt"));
+        sendObjectConfig();
       }
 
       // write network config
-      if (writeNetworkConfig)
+      if (writeNetworkConfigFlag)
       {
-        aConfig.writeNetworkConfig("/config/networkconfig.txt");
-        //aConfig.printJsonFile("/config/networkconfig.txt");
+        writeObjectConfig();
       }
 
       // resend network config
-      if (sendNetworkConfig)
+      if (sendNetworkConfigFlag)
       {
-        ws.textAll(aConfig.stringJsonFile("/config/networkconfig.txt"));
+        sendNetworkConfig();
       }
     }
  
     // clear json buffer
     doc.clear();
-  }
 }
 
 void notFound(AsyncWebServerRequest *request)
@@ -1028,6 +1017,27 @@ int I2C_ClearBus()
   return 0; // all ok
 }
 
+void sendObjectConfig()
+{
+  aConfig.stringJsonFile("/config/objectconfig.txt", bufferToSend, 500);
+  ws.textAll(bufferToSend);
+}
+
+void writeObjectConfig()
+{
+  aConfig.writeObjectConfig("/config/objectconfig.txt");
+}
+
+void sendNetworkConfig()
+{
+  aConfig.stringJsonFile("/config/networkconfig.txt", bufferToSend, 500);
+  ws.textAll(bufferToSend);
+}
+
+void writeNetworkConfig()
+{
+  aConfig.writeNetworkConfig("/config/networkconfig.txt");
+}
 
 void sendUptime()
 {
@@ -1037,58 +1047,83 @@ void sendUptime()
   uint16_t minutes = (now%3600) / 60;
   uint16_t seconds = now % 60;
     
-  String toSend = "{\"uptime\":\"";
-  toSend+= String(days) + String("d ") + String(hours) + String("h ") + String(minutes) + String("m ") + String(seconds) + String("s");
-  toSend+= "\"}";
+  char toSend[100];
+  snprintf(toSend, 100, "{\"uptime\":\"%id %ih %im %is\"}", days, hours, minutes, seconds);
 
   ws.textAll(toSend);
-  Serial.println(toSend);
+  //Serial.println(toSend);
 }
 
-void sendStatutSerrure()
+void sendStatut()
 {
-  String toSend = "{\"statutSerrureActuel\":";
-  toSend+= aConfig.objectConfig.statutSerrureActuel;
-  toSend+= "}";
+  char toSend[100];
+  snprintf(toSend, 100, "{\"statutActuel\":%i}", aConfig.objectConfig.statutActuel); 
+
+  ws.textAll(toSend);
+}
+
+void sendMaxLed()
+{
+  char toSend[20];
+  snprintf(toSend, 20, "{\"maxLed\":%i}", aFastled->getNbMaxLed());
 
   ws.textAll(toSend);
 }
 
 void sendTagUid()
 {
-  String toSend = "{\"lastTagUid\":[";
-  for (uint8_t i=0;i<aPn532->uidLength;i++)
-  {
-    //toSend+= "\"" + String(aPn532->uid[i], HEX) + "\"";
-    // add leading zero
-    char result[3];
-    sprintf(result, "%02x", aPn532->uid[i]);
-    toSend+= "\"" + String(result) + "\"";
-    if (i<aPn532->uidLength-1)
-    {
-      toSend+= ",";
-    }
-  }
-  
-  toSend+= "]}";
+  char toSend[100];
+  snprintf(toSend, 100, "{\"lastTagUid\":[\"%02X\",\"%02X\",\"%02X\",\"%02X\"]}", aPn532->uid[0], aPn532->uid[1], aPn532->uid[2], aPn532->uid[3]);
 
   ws.textAll(toSend);
 }
 
 void printTagUid()
 {
-  for (int i=0;i<aPn532->uidLength;i++)
+  stringTagUid(bufferUid);
+  Serial.println(bufferUid);
+}
+
+void stringTagUid(char * target)
+{
+  snprintf(target, 12, "%02x:%02x:%02x:%02x", aPn532->uid[0], aPn532->uid[1], aPn532->uid[2], aPn532->uid[3]);
+}
+
+void stringTagUid(char * target, uint8_t uidToStr)
+{
+  snprintf(target, 12, "%02x:%02x:%02x:%02x", 
+            aConfig.objectConfig.tagUid[uidToStr][0], 
+            aConfig.objectConfig.tagUid[uidToStr][1], 
+            aConfig.objectConfig.tagUid[uidToStr][2], 
+            aConfig.objectConfig.tagUid[uidToStr][3]);
+}
+
+void removeUid(uint8_t uidToRemove)
+{
+  uint8_t toRemove = min<uint8_t>(MAX_NB_TAG-1, uidToRemove);
+  
+  if (aConfig.objectConfig.nbTagActuel>0)
   {
-    //Serial.print(aPn532->uid[i], HEX);
-    char result[3];
-    sprintf(result, "%02x", aPn532->uid[i]);
-    Serial.print(result);
-    if (i<aPn532->uidLength-1)
+    for (uint8_t i=toRemove;i<aConfig.objectConfig.nbTagActuel-1;i++)
     {
-      Serial.print(":");
+      for (uint8_t j=0;j<SIZE_UID;j++)
+      {
+        aConfig.objectConfig.tagUid[i][j]=aConfig.objectConfig.tagUid[i+1][j];
+      }
     }
+
+    for (uint8_t i=aConfig.objectConfig.nbTagActuel-1;i<MAX_NB_TAG;i++)
+    {
+      for (uint8_t j=0;j<SIZE_UID;j++)
+      {
+        aConfig.objectConfig.tagUid[i][j]=0;
+      }
+    }
+    
+    aConfig.objectConfig.nbTagActuel--;
+  
+    Serial.println("remove done");
   }
-  Serial.println("");
 }
 
 void convertStrToRGB(String source, uint8_t* r, uint8_t* g, uint8_t* b)

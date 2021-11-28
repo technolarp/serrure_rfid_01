@@ -84,7 +84,9 @@
 	
 	if (obj.hasOwnProperty('objectName'))
     {
-      document.getElementById("objectName").value = obj.objectName;
+      document.title = obj.objectName + " Back Office";
+	  document.getElementById("objectName").value = obj.objectName;
+	  document.getElementById("objectNameTitle").innerHTML = obj.objectName + " Back Office";
     }
 	
 	if (obj.hasOwnProperty('activeLeds'))
@@ -126,9 +128,15 @@
       document.getElementById("delaiBlocage2").innerHTML = obj.delaiBlocage;
     }
 	
-	if (obj.hasOwnProperty('tagUid') && obj.hasOwnProperty('nbTag') )
+	if (obj.hasOwnProperty('maxLed'))
     {
-      for (let i = 0; i < obj.nbTag ; i++)
+      document.getElementById("activeLeds").max = obj.maxLed;
+      document.getElementById("maxLed").innerHTML = obj.maxLed;
+    }
+	
+	if (obj.hasOwnProperty('tagUid') && obj.hasOwnProperty('nbTagActuel')  && obj.hasOwnProperty('nbTagStock'))
+    {
+      for (let i = 0; i < obj.nbTagActuel ; i++)
 	  {
 		uid = "";
 		for (let j = 0; j < 4 ; j++)
@@ -147,9 +155,10 @@
 		document.getElementById(tagName).innerHTML=uid.toUpperCase();
 		document.getElementById(buttonName).innerHTML='&#10060;';
 	  }
-	  document.getElementById("nbTag").innerHTML = obj.nbTag;
+	  document.getElementById("nbTagActuel").innerHTML = obj.nbTagActuel;
+	  document.getElementById("nbTagStock").value = obj.nbTagStock;
 	  
-	  for (let i = obj.nbTag; i < 10 ; i++)
+	  for (let i = obj.nbTagActuel; i < 10 ; i++)
 	  {
 		tagName="tagUid_" + i;
 		buttonName="removeUidBut_" + i;
@@ -160,6 +169,42 @@
 		document.getElementById(buttonName).innerHTML='X';
 	  }
     }
+	
+	/*
+	if (obj.hasOwnProperty('tagUid') && obj.hasOwnProperty('nbTagActuel') )
+    {
+      for (let i = 0; i < obj.nbTagActuel ; i++)
+	  {
+		uid = "";
+		for (let j = 0; j < 4 ; j++)
+		{
+			uid = uid + obj.tagUid[i][j];
+			if (j<3)
+			{
+				uid = uid + ":";
+			}
+		}
+		tagName="tagUid_" + i;
+		buttonName="removeUidBut_" + i;
+		document.getElementById(tagName).disabled = false;
+		document.getElementById(buttonName).disabled = false;
+				
+		document.getElementById(tagName).innerHTML=uid.toUpperCase();
+		document.getElementById(buttonName).innerHTML='&#10060;';
+	  }
+	  document.getElementById("nbTagActuel").innerHTML = obj.nbTagActuel;
+	  
+	  for (let i = obj.nbTagActuel; i < 10 ; i++)
+	  {
+		tagName="tagUid_" + i;
+		buttonName="removeUidBut_" + i;
+		document.getElementById(tagName).disabled = true;
+		document.getElementById(buttonName).disabled = true;
+				
+		document.getElementById(tagName).innerHTML='-';
+		document.getElementById(buttonName).innerHTML='X';
+	  }
+    }*/
 	
 	if (obj.hasOwnProperty('lastTagUid'))
 	{
@@ -185,75 +230,76 @@
 		}
 	}
 	
-	if (obj.hasOwnProperty('statutSerrureActuel'))
+	if (obj.hasOwnProperty('statutActuel'))
     {
-		switch (obj.statutSerrureActuel)
+		switch (obj.statutActuel)
 		{
 		case 0:
-			document.getElementById("statutSerrureActuel").innerHTML = "OUVERTE";
+			document.getElementById("statutActuel").innerHTML = "OUVERTE";
 		break;
 		
 		case 1:
-			document.getElementById("statutSerrureActuel").innerHTML = "FERMEE";
+			document.getElementById("statutActuel").innerHTML = "FERMEE";
 		break;
 		
 		case 2:
-			document.getElementById("statutSerrureActuel").innerHTML = "BLOQUEE";
+			document.getElementById("statutActuel").innerHTML = "BLOQUEE";
 		break;
 		
 		case 3:
-			document.getElementById("statutSerrureActuel").innerHTML = "ERREUR";
+			document.getElementById("statutActuel").innerHTML = "ERREUR";
 		break;
 		
 		case 4:
-			document.getElementById("statutSerrureActuel").innerHTML = "RECONFIG";
+			document.getElementById("statutActuel").innerHTML = "RECONFIG";
 		break;
 		
 		case 5:
-			document.getElementById("statutSerrureActuel").innerHTML = "BLINK";
+			document.getElementById("statutActuel").innerHTML = "BLINK";
 		break;
 		
 		default:
-		document.getElementById("statutSerrureActuel").innerHTML = "N/A";
+		document.getElementById("statutActuel").innerHTML = "N/A";
 		}
     }
 	
-	if (obj.hasOwnProperty('statutSerrurePrecedent'))
+	if (obj.hasOwnProperty('statutPrecedent'))
     {
-		switch (obj.statutSerrurePrecedent)
+		switch (obj.statutPrecedent)
 		{
 		case 0:
-			document.getElementById("statutSerrurePrecedent").innerHTML = "OUVERTE";
+			document.getElementById("statutPrecedent").innerHTML = "OUVERTE";
 		break;
 		
 		case 1:
-			document.getElementById("statutSerrurePrecedent").innerHTML = "FERMEE";
+			document.getElementById("statutPrecedent").innerHTML = "FERMEE";
 		break;
 		
 		case 2:
-			document.getElementById("statutSerrurePrecedent").innerHTML = "BLOQUEE";
+			document.getElementById("statutPrecedent").innerHTML = "BLOQUEE";
 		break;
 		
 		case 3:
-			document.getElementById("statutSerrurePrecedent").innerHTML = "ERREUR";
+			document.getElementById("statutPrecedent").innerHTML = "ERREUR";
 		break;
 		
 		case 4:
-			document.getElementById("statutSerrurePrecedent").innerHTML = "RECONFIG";
+			document.getElementById("statutPrecedent").innerHTML = "RECONFIG";
 		break;
 		
 		case 5:
-			document.getElementById("statutSerrureActuel").innerHTML = "BLINK";
+			document.getElementById("statutActuel").innerHTML = "BLINK";
 		break;
 		
 		default:
-		document.getElementById("statutSerrurePrecedent").innerHTML = "N/A";
+		document.getElementById("statutPrecedent").innerHTML = "N/A";
 		}
     }
 	
 	if (obj.hasOwnProperty('apName'))
     {
-      document.getElementById("apName").value = obj.apName;
+      document.getElementById("apNameTitle").innerHTML = obj.apName + " Network config";
+	  document.getElementById("apName").value = obj.apName;
     }
 	
 	if (obj.hasOwnProperty('apPassword') && obj.apPassword != "")
@@ -311,7 +357,7 @@
 	<body>
 	<table width=600>
     <tr>
-      <td colspan="2"><h2>%OBJECTNAME% Back Office</h2></td>
+      <td colspan="2"><h2><span id="objectNameTitle"></span></h2></td>
     </tr>
     <tr>
       <td>Object name </td>
@@ -326,7 +372,11 @@
       <td><input type="number" id="groupId" name="groupId" min="1" max="1000" onchange="sendNewValue('groupId',document.getElementById('groupId').value, false);"> &nbsp; &nbsp; &nbsp; &nbsp; 1 - 1000</td>
     </tr>
 	<tr>
-      <td>Tags (<span id="nbTag"></span>/10)</td>
+      <td>nb tag en memoire</td>
+      <td><input type="number" id="nbTagStock" name="nbTagStock" min="1" max="10" onchange="sendNewValue('nbTagStock',this.value, false);"> &nbsp; &nbsp; &nbsp; &nbsp; 1 - 10</td>
+    </tr>
+	<tr>
+      <td>Tags (<span id="nbTagActuel"></span>/10)</td>
       <td>
 		<table width="400px">
 		<tr>
@@ -400,18 +450,18 @@
 	<tr>
       <td>Statuts Serrure</td>
       <td>
-		<button onclick="sendNewValue('statutSerrureActuel',0, false);">Ouverte</button>
-		<button onclick="sendNewValue('statutSerrureActuel',1, false);">Fermée</button>
-		<button onclick="sendNewValue('statutSerrureActuel',2, false);">Bloquée</button>
+		<button onclick="sendNewValue('statutActuel',0, false);">Ouverte</button>
+		<button onclick="sendNewValue('statutActuel',1, false);">Fermée</button>
+		<button onclick="sendNewValue('statutActuel',2, false);">Bloquée</button>
 	  </td>
     </tr>
 	<tr>
       <td>Statuts Serrure</td>
-      <td>statut Serrure Precedent : <span id="statutSerrurePrecedent"></span><br>statut Serrure Actuel : <span id="statutSerrureActuel"></span></td>
+      <td>statut Serrure Precedent : <span id="statutPrecedent"></span><br>statut Serrure Actuel : <span id="statutActuel"></span></td>
     </tr>
 	<tr>
       <td>ActiveLeds </td>
-      <td><input type="number" id="activeLeds" name="activeLeds" min="1" max="24" onchange="sendNewValue('activeLeds',document.getElementById('activeLeds').value, false);"> &nbsp; &nbsp; &nbsp; &nbsp;  1 - %MAXLEDS%</td>
+      <td><input type="number" id="activeLeds" name="activeLeds" min="1" max="50" onchange="sendNewValue('activeLeds',document.getElementById('activeLeds').value, false);"> &nbsp; &nbsp; &nbsp; &nbsp;  1 - <span id="maxLed"></span></td>
     </tr>
     <tr>
       <td>Brightness : <span id="brightness2"></span></td>
@@ -428,7 +478,7 @@
 	</table>
 	<table width=600>
 	<tr>
-      <td colspan="2"><h2>%APNAME% Network config</h2></td>
+      <td colspan="2"><h2><span id="apNameTitle"></span></h2></td>
     </tr>
     <tr>
       <td>AP name </td>
@@ -460,7 +510,7 @@
     </tr>
 	<tr>
       <td>BLINK esp8266</td>
-      <td><button onclick="sendNewValue('statutSerrureActuel',5);">BLINK</button></td>
+      <td><button onclick="sendNewValue('statutActuel',5);">BLINK</button></td>
     </tr>
 	<tr>
       <td>Default Object config</td>
