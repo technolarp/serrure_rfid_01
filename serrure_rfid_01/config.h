@@ -68,7 +68,7 @@ class M_config
     }
     else
     {
-      Serial.println(F("File opened"));
+      Serial.println(F("File object r opened"));
     }
   
     StaticJsonDocument<JSONBUFFERSIZE> doc;
@@ -101,7 +101,6 @@ class M_config
       // read uid array
       if (doc.containsKey("tagUid"))
       {
-        //JsonArray uidDeserialize = docDeserialize["uid"];
         JsonArray tagUidArray = doc["tagUid"];
        
         for (uint8_t i=0;i<MAX_NB_TAG;i++)
@@ -137,7 +136,6 @@ class M_config
         strlcpy(  objectConfig.objectName,
                   doc["objectName"],
                   SIZE_ARRAY);
-                  //sizeof(objectConfig.objectName));
       }
     }
       
@@ -147,8 +145,6 @@ class M_config
 
   void writeObjectConfig(const char * filename)
   { 
-    
-    
     // Delete existing file, otherwise the configuration is appended to the file
     LittleFS.remove(filename);
     
@@ -161,11 +157,12 @@ class M_config
     }
     else
     {
-      Serial.println(F("File w opened"));
+      Serial.println(F("File object w opened"));
     }
 
     // Allocate a temporary JsonDocument
-    StaticJsonDocument<JSONBUFFERSIZE> doc;
+    //StaticJsonDocument<JSONBUFFERSIZE> doc;
+    DynamicJsonDocument doc(JSONBUFFERSIZE);
 
     doc["objectName"] = objectConfig.objectName;
     
@@ -218,7 +215,6 @@ class M_config
 
     // Close the file (File's destructor doesn't close the file)
     file.close();
-    Serial.println(F("File w closed"));
   }
 
   void writeDefaultObjectConfig(const char * filename)

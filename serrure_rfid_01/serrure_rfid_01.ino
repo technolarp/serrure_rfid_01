@@ -26,10 +26,16 @@
 */
 
 /* TODO
+ renommer nbTagStock / tagOK2
+ move i2c reset dan lib
+ statut object universel
+ move anim led et blink dans fastled
  check ajout new uid
  check taille uid variable
- check bug taille donnees ndef longue
+ check bug taille donnees static/dynamic json doc
+ print memory size
  cleanup code
+ pn532 static
  */
 
 #include <Arduino.h>
@@ -46,14 +52,9 @@ AsyncWebSocket ws("/ws");
 char bufferWebsocket[300];
 bool flagBufferWebsocket = false;
 
-// TASK SCHEDULER
-#define _TASK_OO_CALLBACKS
-#include <TaskScheduler.h>
-Scheduler globalScheduler;
-
-// LED RGB
+// FASTLED
 #include <technolarp_fastled.h>
-M_fastled* aFastled;
+M_fastled aFastled;
 
 // RFID
 #include <technolarp_pn532.h>
@@ -62,7 +63,7 @@ M_pn532* aPn532;
 // BUZZER
 #define PIN_BUZZER D8
 #include <technolarp_buzzer.h>
-M_buzzer* buzzer;
+M_buzzer buzzer(PIN_BUZZER);
 
 // CONFIG
 #include "config.h"
@@ -72,7 +73,7 @@ char bufferToSend[500];
 char bufferUid[12];
 
 // CODE ACTUEL DE LA SERRURE
-char codeSerrureActuel[8] = {'0', '0', '0', '0', '0', '0', '0', '0'};
+//clean char codeSerrureActuel[8] = {'0', '0', '0', '0', '0', '0', '0', '0'};
 
 // STATUTS DE LA SERRURE
 enum {
@@ -85,23 +86,31 @@ enum {
 };
 
 // PARAM RECONFIG
+//clean 
+/*
 enum {
   RECONFIG_CODE = 0,
   RECONFIG_ERREUR = 1,
   RECONFIG_DELAI = 2,
   RECONFIG_TAILLE_CODE = 3
 };
+*/
 
 // DIVERS
 bool uneFois = true;
 
-char bufferReconfig[8] = {'0','0','0','0','0','0','0','0'};
-uint8_t modeReconfig = 0;
+//clean char bufferReconfig[8] = {'0','0','0','0','0','0','0','0'};
+//clean uint8_t modeReconfig = 0;
 
+// BLINK
+uint32_t startMillisBlink;
+uint32_t previousMillisBlink;
+uint32_t intervalBlink;
+bool blinkFlag = true;
+uint8_t cptBlink = 0;
 
 // HEARTBEAT
 unsigned long int previousMillisHB;
-unsigned long int currentMillisHB;
 unsigned long int intervalHB;
 
 /*
@@ -144,7 +153,6 @@ void setup()
   else
   { 
     // bus clear
-    //Wire.begin();
     Serial.println(F("I2C bus clear"));
   }
   Serial.println("setup finished");
@@ -163,20 +171,15 @@ void setup()
   //aConfig.printJsonFile("/config/networkconfig.txt");
   aConfig.readNetworkConfig("/config/networkconfig.txt");
 
-  // LED RGB
-  aFastled = new M_fastled(&globalScheduler);
-  aFastled->setNbLed(aConfig.objectConfig.activeLeds);
-  aFastled->setBrightness(aConfig.objectConfig.brightness);
-
-  // animation led de depart  
-  aFastled->allLedOff();
+  // FASTLED
+  // animation led de depart
   for (int i = 0; i < aConfig.objectConfig.activeLeds * 2; i++)
   {
-    aFastled->ledOn(i % aConfig.objectConfig.activeLeds, CRGB::Blue);
+    aFastled.ledOn(i, CRGB::Blue, true);
     delay(50);
-    aFastled->ledOn(i % aConfig.objectConfig.activeLeds, CRGB::Black);
+    aFastled.ledOff(i, true);
   }
-  aFastled->allLedOff();
+  aFastled.allLedOff();
   
   // RFID
   aPn532 = new M_pn532;
@@ -184,19 +187,19 @@ void setup()
   // WIFI
   WiFi.disconnect(true);
   
-  /*
+  
   // AP MODE
   WiFi.mode(WIFI_AP_STA);
   WiFi.softAPConfig(aConfig.networkConfig.apIP, aConfig.networkConfig.apIP, aConfig.networkConfig.apNetMsk);
   WiFi.softAP(aConfig.networkConfig.apName, aConfig.networkConfig.apPassword);
-  */
   
+  /*
   // CLIENT MODE POUR DEBUG
   const char* ssid = "MYDEBUG";
-  const char* password = "3V8WtBvJ";
+  const char* password = "ppppppp";
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-  
+  */
 
   if (WiFi.waitForConnectResult() != WL_CONNECTED) 
   {
@@ -223,12 +226,10 @@ void setup()
   server.begin();
 
   // BUZZER
-  buzzer = new M_buzzer(PIN_BUZZER, &globalScheduler);
-  buzzer->doubleBeep();
+  buzzer.doubleBeep();
 
   // HEARTBEAT
-  currentMillisHB = millis();
-  previousMillisHB = currentMillisHB;
+  previousMillisHB = millis();
   intervalHB = 5000;
   
   // SERIAL
@@ -257,9 +258,9 @@ void loop()
   
   // WEBSOCKET
   ws.cleanupClients();
-  
-  // manage task scheduler
-  globalScheduler.execute();
+
+  // BUZZER
+  buzzer.update();
 
   // RFID PN5323
   aPn532->updateRFID();
@@ -287,11 +288,6 @@ void loop()
       serrureErreur();
       break;
 
-    case SERRURE_RECONFIG:
-      // un parametre doit etre modifie
-//      serrureReconfig();
-      break;
-
     case SERRURE_BLINK:
       // blink led pour identification
       serrureBlink();
@@ -310,10 +306,9 @@ void loop()
   }
   
   // HEARTBEAT
-  currentMillisHB = millis();
-  if(currentMillisHB - previousMillisHB > intervalHB)
+  if(millis() - previousMillisHB > intervalHB)
   {
-    previousMillisHB = currentMillisHB;
+    previousMillisHB = millis();
     
     // send new value to html
     sendUptime();
@@ -341,13 +336,8 @@ void serrureFermee()
   {
     uneFois = false;
 
-    // on allume les led rouge
-    aFastled->allLedOff();
-    for (int i = 0; i < aConfig.objectConfig.activeLeds; i++)
-    {
-      aFastled->setLed(i, aConfig.objectConfig.couleurs[0]);
-    }
-    aFastled->ledShow();
+    // on allume les led en rouge
+    aFastled.allLedOn(aConfig.objectConfig.couleurs[0], true);
 
     Serial.print(F("SERRURE FERMEE"));
     Serial.println();
@@ -363,13 +353,8 @@ void serrureOuverte()
   {
     uneFois = false;
 
-    // on allume les led verte
-    aFastled->allLedOff();
-    for (int i = 0; i < aConfig.objectConfig.activeLeds; i++)
-    {
-      aFastled->setLed(i, aConfig.objectConfig.couleurs[1]);
-    }
-    aFastled->ledShow();
+    // on allume les led en vert
+    aFastled.allLedOn(aConfig.objectConfig.couleurs[1], true);
 
     Serial.print(F("SERRURE OUVERTE"));
     Serial.println();
@@ -381,17 +366,38 @@ void serrureOuverte()
 
 void serrureErreur()
 {
-  if (!aFastled->isEnabled() && uneFois)
+  if (uneFois)
   {
     uneFois = false;
-    aFastled->startAnimSerrureErreur(10, 100);
+    Serial.println(F("SERRURE ERREUR"));
+
+    previousMillisBlink = millis();
+    startMillisBlink = previousMillisBlink;
+    intervalBlink = 100;
+
+    blinkFlag = true;
   }
 
-  if (!aFastled->isAnimActive())
+  if(millis() - previousMillisBlink > intervalBlink)
   {
-    Serial.println(F("END TASK ERREUR"));
+    previousMillisBlink = millis();
+    blinkFlag = !blinkFlag;
 
+    if (blinkFlag)
+    {
+      aFastled.allLedOn(aConfig.objectConfig.couleurs[0], true);
+    }
+    else
+    {
+      aFastled.allLedOff();
+    }
+  }
+
+  // fin de l'animation erreur 
+  if(millis() - startMillisBlink > 2000) 
+  {
     uneFois = true;
+    aFastled.allLedOn(aConfig.objectConfig.couleurs[0], true);
 
     // si il y a eu trop de faux codes
     if (aConfig.objectConfig.nbErreurCode >= aConfig.objectConfig.nbErreurCodeMax)
@@ -403,65 +409,96 @@ void serrureErreur()
     {
       aConfig.objectConfig.statutActuel = aConfig.objectConfig.statutPrecedent;
     }
-
-    // ecrire la config sur littleFS
-    aConfig.writeObjectConfig("/config/objectconfig.txt");
-
-    // resend config object
+    
+    writeObjectConfig();
     sendObjectConfig();
   }
 }
 
 void serrureBloquee()
 {
-  if (!aFastled->isEnabled() && uneFois)
+  if (uneFois)
   {
     uneFois = false;
-    aFastled->startAnimSerrureBloquee(aConfig.objectConfig.delaiBlocage*2, 500);
+    Serial.println(F("SERRURE BLOQUEE"));
+
+    previousMillisBlink = millis();
+    startMillisBlink = previousMillisBlink;
+    intervalBlink = 500;
+
+    blinkFlag = true;
   }
 
-  if (!aFastled->isAnimActive())
+  if(millis() - previousMillisBlink > intervalBlink)
   {
-    Serial.print(F("END TASK BLOCAGE "));
-    Serial.println();
+    previousMillisBlink = millis();
+    blinkFlag = !blinkFlag;
+
+    if (blinkFlag)
+    {
+      aFastled.allLedOn(aConfig.objectConfig.couleurs[1], true);
+    }
+    else
+    {
+      aFastled.allLedOn(aConfig.objectConfig.couleurs[0], true);
+    }
+  }
+
+  // fin de l'animation blocage
+  if( (millis() - startMillisBlink) > (aConfig.objectConfig.delaiBlocage*1000) ) 
+  {
+    Serial.println(F("END BLOCAGE "));
+    
+    uneFois = true;
+
     aConfig.objectConfig.statutActuel = aConfig.objectConfig.statutPrecedent;
     aConfig.objectConfig.nbErreurCode = 0;
 
-    uneFois = true;
-
-    // ecrire la config sur littleFS
     writeObjectConfig();
-    //aConfig.writeObjectConfig("/config/objectconfig.txt");
-    
-    // resend config object
     sendObjectConfig();
   }
 }
 
-
-
 void serrureBlink()
 {
-  if (!aFastled->isEnabled() && uneFois)
+  if (uneFois)
   {
     uneFois = false;
-    aFastled->startAnimBlink(15, 200, CRGB::Blue, aConfig.objectConfig.activeLeds);
+    Serial.println(F("SERRURE BLINK"));
+
+    previousMillisBlink = millis();
+    startMillisBlink = previousMillisBlink;
+    intervalBlink = 200;
+
+    blinkFlag = true;
   }
 
-  if (!aFastled->isAnimActive())
+  if(millis() - previousMillisBlink > intervalBlink)
   {
-    Serial.println(F("END TASK BLINK"));
+    previousMillisBlink = millis();
+    blinkFlag = !blinkFlag;
 
+    if (blinkFlag)
+    {
+      aFastled.allLedOn(CRGB::Blue, true);
+    }
+    else
+    {
+      aFastled.allLedOff();
+    }
+  }
+
+  // fin de l'animation blocage
+  if(millis() - startMillisBlink > 2000) 
+  {
     uneFois = true;
 
-    // retour au statut precedent
     aConfig.objectConfig.statutActuel = aConfig.objectConfig.statutPrecedent;
-    
-    // ecrire la config sur littleFS
-    writeObjectConfig();
 
-    // resend config object
+    writeObjectConfig();
     sendObjectConfig();
+
+    Serial.println(F("END BLINK "));
   }
 }
 
@@ -500,7 +537,7 @@ void checkRfidTag()
     // change lock status if needed
     if (tagOK)
     {
-      buzzer->shortBeep();
+      buzzer.shortBeep();
 
       aConfig.objectConfig.statutActuel = !aConfig.objectConfig.statutActuel;
       aConfig.objectConfig.nbErreurCode = 0;
@@ -511,7 +548,7 @@ void checkRfidTag()
     {
       // le tag n'est pas le bon
       Serial.println(F("mauvais tag"));
-      buzzer->longBeep();
+      buzzer.longBeep();
 
       // on augmente le compteur de code faux
       aConfig.objectConfig.nbErreurCode += 1;
@@ -538,8 +575,8 @@ void checkRfidTag()
 
 void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) 
 {
-   switch (type) 
-    {
+  switch (type) 
+   {
       case WS_EVT_CONNECT:
         Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
         // send config value to html
@@ -548,9 +585,7 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
         
         // send volatile info
         sendUptime();
-        sendStatut();
-        sendMaxLed();
-        
+        sendMaxLed();        
         break;
         
       case WS_EVT_DISCONNECT:
@@ -583,7 +618,7 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
 }
 
 void handleWebsocketBuffer()
-{
+{    
     DynamicJsonDocument doc(JSONBUFFERSIZE);
     
     DeserializationError error = deserializeJson(doc, bufferWebsocket);
@@ -630,12 +665,13 @@ void handleWebsocketBuffer()
 
       if (doc.containsKey("new_activeLeds")) 
       {
-        aFastled->allLedOff();
+        aFastled.allLedOff();
         
         uint16_t tmpValeur = doc["new_activeLeds"];
-        aConfig.objectConfig.activeLeds = checkValeur(tmpValeur,1,aFastled->getNbMaxLed());
-        aFastled->setNbLed(aConfig.objectConfig.activeLeds);
+        aConfig.objectConfig.activeLeds = checkValeur(tmpValeur,1,NB_LEDS_MAX);
         
+        uneFois = true;
+
         writeObjectConfigFlag = true;
         sendObjectConfigFlag = true;
       }
@@ -644,7 +680,8 @@ void handleWebsocketBuffer()
       {
         uint16_t tmpValeur = doc["new_brightness"];
         aConfig.objectConfig.brightness = checkValeur(tmpValeur,0,255);
-        aFastled->setBrightness(aConfig.objectConfig.brightness);
+        aFastled.setBrightness(aConfig.objectConfig.brightness);
+        uneFois=true;
         
         writeObjectConfigFlag = true;
         sendObjectConfigFlag = true;
@@ -670,11 +707,11 @@ void handleWebsocketBuffer()
       
       if (doc.containsKey("new_statutActuel"))
       {
-        aConfig.objectConfig.statutPrecedent = aConfig.objectConfig.statutActuel;
-        aConfig.objectConfig.statutActuel = doc["new_statutActuel"];
-
-        aFastled->disable();
-        aFastled->setAnim(0);
+        uint16_t tmpValeur = doc["new_statutActuel"];
+        aConfig.objectConfig.statutPrecedent=aConfig.objectConfig.statutActuel;
+        aConfig.objectConfig.statutActuel=tmpValeur;
+    
+        uneFois=true;
         
         writeObjectConfigFlag = true;
         sendObjectConfigFlag = true;
@@ -932,8 +969,6 @@ uint16_t checkValeur(uint16_t valeur, uint16_t minValeur, uint16_t maxValeur)
 }
 
 
-
-
 /**
  * This routine turns off the I2C bus and clears it
  * on return SCA and SCL pins are tri-state inputs.
@@ -1065,8 +1100,8 @@ void sendStatut()
 void sendMaxLed()
 {
   char toSend[20];
-  snprintf(toSend, 20, "{\"maxLed\":%i}", aFastled->getNbMaxLed());
-
+  snprintf(toSend, 20, "{\"maxLed\":%i}", NB_LEDS_MAX);
+  
   ws.textAll(toSend);
 }
 
