@@ -8,7 +8,7 @@
 		table {border-collapse:collapse; max-width: 1000px;}
 		td {text-align: center;}
 		</style>
-		<title>%OBJECTNAME%    Back Office</title>
+		<title>Back Office</title>
 	</head>
 	<script>
   lastHeartBeat = Date.now();
@@ -134,9 +134,9 @@
       document.getElementById("maxLed").innerHTML = obj.maxLed;
     }
 	
-	if (obj.hasOwnProperty('tagUid') && obj.hasOwnProperty('nbTagActuel')  && obj.hasOwnProperty('nbTagStock'))
+	if (obj.hasOwnProperty('tagUid') && obj.hasOwnProperty('nbTagEnMemoireActuel')  && obj.hasOwnProperty('nbTagEnMemoireMax'))
     {
-      for (let i = 0; i < obj.nbTagActuel ; i++)
+      for (let i = 0; i < obj.nbTagEnMemoireActuel ; i++)
 	  {
 		uid = "";
 		for (let j = 0; j < 4 ; j++)
@@ -155,10 +155,11 @@
 		document.getElementById(tagName).innerHTML=uid.toUpperCase();
 		document.getElementById(buttonName).innerHTML='&#10060;';
 	  }
-	  document.getElementById("nbTagActuel").innerHTML = obj.nbTagActuel;
-	  document.getElementById("nbTagStock").value = obj.nbTagStock;
+	  document.getElementById("nbTagEnMemoireActuel").innerHTML = obj.nbTagEnMemoireActuel;
+	  document.getElementById("nbTagEnMemoireMax2").innerHTML = obj.nbTagEnMemoireMax;
+	  document.getElementById("nbTagEnMemoireMax").value = obj.nbTagEnMemoireMax;
 	  
-	  for (let i = obj.nbTagActuel; i < 10 ; i++)
+	  for (let i = obj.nbTagEnMemoireActuel; i < 10 ; i++)
 	  {
 		tagName="tagUid_" + i;
 		buttonName="removeUidBut_" + i;
@@ -169,42 +170,6 @@
 		document.getElementById(buttonName).innerHTML='X';
 	  }
     }
-	
-	/*
-	if (obj.hasOwnProperty('tagUid') && obj.hasOwnProperty('nbTagActuel') )
-    {
-      for (let i = 0; i < obj.nbTagActuel ; i++)
-	  {
-		uid = "";
-		for (let j = 0; j < 4 ; j++)
-		{
-			uid = uid + obj.tagUid[i][j];
-			if (j<3)
-			{
-				uid = uid + ":";
-			}
-		}
-		tagName="tagUid_" + i;
-		buttonName="removeUidBut_" + i;
-		document.getElementById(tagName).disabled = false;
-		document.getElementById(buttonName).disabled = false;
-				
-		document.getElementById(tagName).innerHTML=uid.toUpperCase();
-		document.getElementById(buttonName).innerHTML='&#10060;';
-	  }
-	  document.getElementById("nbTagActuel").innerHTML = obj.nbTagActuel;
-	  
-	  for (let i = obj.nbTagActuel; i < 10 ; i++)
-	  {
-		tagName="tagUid_" + i;
-		buttonName="removeUidBut_" + i;
-		document.getElementById(tagName).disabled = true;
-		document.getElementById(buttonName).disabled = true;
-				
-		document.getElementById(tagName).innerHTML='-';
-		document.getElementById(buttonName).innerHTML='X';
-	  }
-    }*/
 	
 	if (obj.hasOwnProperty('lastTagUid'))
 	{
@@ -373,10 +338,10 @@
     </tr>
 	<tr>
       <td>nb tag en memoire</td>
-      <td><input type="number" id="nbTagStock" name="nbTagStock" min="1" max="10" onchange="sendNewValue('nbTagStock',this.value, false);"> &nbsp; &nbsp; &nbsp; &nbsp; 1 - 10</td>
+      <td><input type="number" id="nbTagEnMemoireMax" name="nbTagEnMemoireMax" min="1" max="10" onchange="sendNewValue('nbTagEnMemoireMax',this.value, false);"> &nbsp; &nbsp; &nbsp; &nbsp; 1 - 10</td>
     </tr>
 	<tr>
-      <td>Tags (<span id="nbTagActuel"></span>/10)</td>
+      <td>Tags (<span id="nbTagEnMemoireActuel"></span>/<span id="nbTagEnMemoireMax2"></span>)</td>
       <td>
 		<table width="400px">
 		<tr>

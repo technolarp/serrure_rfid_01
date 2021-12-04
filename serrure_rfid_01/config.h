@@ -30,8 +30,8 @@ class M_config
   	uint8_t statutActuel;
   	uint8_t statutPrecedent;
 
-    uint8_t nbTagStock;
-    uint8_t nbTagActuel;
+    uint8_t nbTagEnMemoireMax;
+    uint8_t nbTagEnMemoireActuel;
     uint8_t tagUid[MAX_NB_TAG][SIZE_UID];
 
     CRGB couleurs[2];
@@ -66,10 +66,6 @@ class M_config
       Serial.println(F("Failed to open file for reading"));
       return;
     }
-    else
-    {
-      Serial.println(F("File object r opened"));
-    }
   
     StaticJsonDocument<JSONBUFFERSIZE> doc;
     //DynamicJsonDocument doc(JSONBUFFERSIZE);
@@ -95,8 +91,8 @@ class M_config
       
       objectConfig.statutActuel = doc["statutActuel"];
       objectConfig.statutPrecedent = doc["statutPrecedent"];
-      objectConfig.nbTagStock = doc["nbTagStock"];
-      objectConfig.nbTagActuel = doc["nbTagActuel"];
+      objectConfig.nbTagEnMemoireMax = doc["nbTagEnMemoireMax"];
+      objectConfig.nbTagEnMemoireActuel = doc["nbTagEnMemoireActuel"];
 
       // read uid array
       if (doc.containsKey("tagUid"))
@@ -155,10 +151,6 @@ class M_config
       Serial.println(F("Failed to create file"));
       return;
     }
-    else
-    {
-      Serial.println(F("File object w opened"));
-    }
 
     // Allocate a temporary JsonDocument
     //StaticJsonDocument<JSONBUFFERSIZE> doc;
@@ -178,8 +170,8 @@ class M_config
     doc["statutActuel"] = objectConfig.statutActuel;
     doc["statutPrecedent"] = objectConfig.statutPrecedent;
 
-    doc["nbTagStock"] = min<uint8_t>(objectConfig.nbTagStock,MAX_NB_TAG); 
-    doc["nbTagActuel"] = objectConfig.nbTagActuel;
+    doc["nbTagEnMemoireMax"] = min<uint8_t>(objectConfig.nbTagEnMemoireMax,MAX_NB_TAG); 
+    doc["nbTagEnMemoireActuel"] = objectConfig.nbTagEnMemoireActuel;
     
     JsonArray tagUidArray = doc.createNestedArray("tagUid");
 
@@ -231,8 +223,8 @@ class M_config
     objectConfig.statutActuel = 1;
     objectConfig.statutPrecedent = 1;
   
-    objectConfig.nbTagStock = 5;
-    objectConfig.nbTagActuel = 0;
+    objectConfig.nbTagEnMemoireMax = 5;
+    objectConfig.nbTagEnMemoireActuel = 0;
   
     for (uint8_t i=0;i<MAX_NB_TAG;i++)
     {
@@ -266,10 +258,6 @@ class M_config
     {
       Serial.println(F("Failed to open file for reading"));
       return;
-    }
-    else
-    {
-      Serial.println(F("File opened"));
     }
   
     StaticJsonDocument<1024> doc;

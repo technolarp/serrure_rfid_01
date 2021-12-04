@@ -2,7 +2,7 @@
    ----------------------------------------------------------------------------
    TECHNOLARP - https://technolarp.github.io/
    SERRURE RFID 01 - https://github.com/technolarp/serrure_rfid_01
-   version 1.0 - 11/2021
+   version 1.0 - 12/2021
    ----------------------------------------------------------------------------
 */
 
@@ -26,16 +26,13 @@
 */
 
 /* TODO
- renommer nbTagStock / tagOK2
  move i2c reset dan lib
- statut object universel
- move anim led et blink dans fastled
  check ajout new uid
  check taille uid variable
  check bug taille donnees static/dynamic json doc
  print memory size
- cleanup code
  pn532 static
+ indicateur connexion wifi
  */
 
 #include <Arduino.h>
@@ -69,45 +66,22 @@ M_buzzer buzzer(PIN_BUZZER);
 #include "config.h"
 M_config aConfig;
 
-char bufferToSend[500];
+#define BUFFERSENDSIZE 600
+char bufferToSend[BUFFERSENDSIZE];
 char bufferUid[12];
 
-// CODE ACTUEL DE LA SERRURE
-//clean char codeSerrureActuel[8] = {'0', '0', '0', '0', '0', '0', '0', '0'};
-
-// STATUTS DE LA SERRURE
+// STATUTS DE L OBJET
 enum {
-  SERRURE_OUVERTE = 0,
-  SERRURE_FERMEE = 1,
-  SERRURE_BLOQUEE = 2,
-  SERRURE_ERREUR = 3,
-  SERRURE_RECONFIG = 4,
-  SERRURE_BLINK = 5
+  OBJET_OUVERT = 0,
+  OBJET_FERME = 1,
+  OBJET_BLOQUE = 2,
+  OBJET_ERREUR = 3,
+  OBJET_RECONFIG = 4,
+  OBJET_BLINK = 5
 };
-
-// PARAM RECONFIG
-//clean 
-/*
-enum {
-  RECONFIG_CODE = 0,
-  RECONFIG_ERREUR = 1,
-  RECONFIG_DELAI = 2,
-  RECONFIG_TAILLE_CODE = 3
-};
-*/
 
 // DIVERS
 bool uneFois = true;
-
-//clean char bufferReconfig[8] = {'0','0','0','0','0','0','0','0'};
-//clean uint8_t modeReconfig = 0;
-
-// BLINK
-uint32_t startMillisBlink;
-uint32_t previousMillisBlink;
-uint32_t intervalBlink;
-bool blinkFlag = true;
-uint8_t cptBlink = 0;
 
 // HEARTBEAT
 unsigned long int previousMillisHB;
@@ -129,7 +103,7 @@ void setup()
   Serial.println(F("----------------------------------------------------------------------------"));
   Serial.println(F("TECHNOLARP - https://technolarp.github.io/"));
   Serial.println(F("SERRURE RFID 01 - https://github.com/technolarp/serrure_rfid_01"));
-  Serial.println(F("version 1.0 - 11/2021"));
+  Serial.println(F("version 1.0 - 12/2021"));
   Serial.println(F("----------------------------------------------------------------------------"));
 
   // I2C RESET
@@ -155,7 +129,6 @@ void setup()
     // bus clear
     Serial.println(F("I2C bus clear"));
   }
-  Serial.println("setup finished");
   
   // CONFIG OBJET
   Serial.println(F(""));
@@ -173,19 +146,16 @@ void setup()
 
   // FASTLED
   // animation led de depart
-  for (int i = 0; i < aConfig.objectConfig.activeLeds * 2; i++)
-  {
-    aFastled.ledOn(i, CRGB::Blue, true);
-    delay(50);
-    aFastled.ledOff(i, true);
-  }
-  aFastled.allLedOff();
+  aFastled.animationDepart(50, aFastled.getNbLed()*2, CRGB::Blue);
   
   // RFID
   aPn532 = new M_pn532;
 
   // WIFI
   WiFi.disconnect(true);
+
+  Serial.println(F(""));
+  Serial.println(F("connecting WiFi"));
   
   
   // AP MODE
@@ -203,7 +173,11 @@ void setup()
 
   if (WiFi.waitForConnectResult() != WL_CONNECTED) 
   {
-    Serial.printf("WiFi Failed!\n");
+    Serial.println(F("WiFi Failed!"));
+  }
+  else
+  {
+    Serial.println(F("WiFi OK"));
   }
   
   // WEB SERVER
@@ -254,11 +228,14 @@ void setup()
 void loop()
 {  
   // avoid watchdog reset
-  yield();
+  //yield();
   
   // WEBSOCKET
   ws.cleanupClients();
 
+  // FASTLED
+  aFastled.updateAnimation();
+  
   // BUZZER
   buzzer.update();
 
@@ -268,27 +245,27 @@ void loop()
   // gerer le statut de la serrure
   switch (aConfig.objectConfig.statutActuel)
   {
-    case SERRURE_FERMEE:
+    case OBJET_FERME:
       // la serrure est fermee
       serrureFermee();
       break;
 
-    case SERRURE_OUVERTE:
+    case OBJET_OUVERT:
       // la serrure est ouverte
       serrureOuverte();
       break;
 
-    case SERRURE_BLOQUEE:
+    case OBJET_BLOQUE:
       // la serrure est bloquee
       serrureBloquee();
       break;
 
-    case SERRURE_ERREUR:
+    case OBJET_ERREUR:
       // un code incorrect a ete entrer
       serrureErreur();
       break;
 
-    case SERRURE_BLINK:
+    case OBJET_BLINK:
       // blink led pour identification
       serrureBlink();
       break;
@@ -371,39 +348,19 @@ void serrureErreur()
     uneFois = false;
     Serial.println(F("SERRURE ERREUR"));
 
-    previousMillisBlink = millis();
-    startMillisBlink = previousMillisBlink;
-    intervalBlink = 100;
-
-    blinkFlag = true;
-  }
-
-  if(millis() - previousMillisBlink > intervalBlink)
-  {
-    previousMillisBlink = millis();
-    blinkFlag = !blinkFlag;
-
-    if (blinkFlag)
-    {
-      aFastled.allLedOn(aConfig.objectConfig.couleurs[0], true);
-    }
-    else
-    {
-      aFastled.allLedOff();
-    }
+    aFastled.animationBlink02Start(100, 1100, aConfig.objectConfig.couleurs[0], CRGB::Black);
   }
 
   // fin de l'animation erreur 
-  if(millis() - startMillisBlink > 2000) 
+  if(!aFastled.isAnimActive()) 
   {
     uneFois = true;
-    aFastled.allLedOn(aConfig.objectConfig.couleurs[0], true);
-
+    
     // si il y a eu trop de faux codes
     if (aConfig.objectConfig.nbErreurCode >= aConfig.objectConfig.nbErreurCodeMax)
     {
       // on bloque la serrure
-      aConfig.objectConfig.statutActuel = SERRURE_BLOQUEE;
+      aConfig.objectConfig.statutActuel = OBJET_BLOQUE;
     }
     else
     {
@@ -422,33 +379,12 @@ void serrureBloquee()
     uneFois = false;
     Serial.println(F("SERRURE BLOQUEE"));
 
-    previousMillisBlink = millis();
-    startMillisBlink = previousMillisBlink;
-    intervalBlink = 500;
-
-    blinkFlag = true;
-  }
-
-  if(millis() - previousMillisBlink > intervalBlink)
-  {
-    previousMillisBlink = millis();
-    blinkFlag = !blinkFlag;
-
-    if (blinkFlag)
-    {
-      aFastled.allLedOn(aConfig.objectConfig.couleurs[1], true);
-    }
-    else
-    {
-      aFastled.allLedOn(aConfig.objectConfig.couleurs[0], true);
-    }
+    aFastled.animationBlink02Start(500, aConfig.objectConfig.delaiBlocage*1000, aConfig.objectConfig.couleurs[0], aConfig.objectConfig.couleurs[1]);
   }
 
   // fin de l'animation blocage
-  if( (millis() - startMillisBlink) > (aConfig.objectConfig.delaiBlocage*1000) ) 
+  if(!aFastled.isAnimActive()) 
   {
-    Serial.println(F("END BLOCAGE "));
-    
     uneFois = true;
 
     aConfig.objectConfig.statutActuel = aConfig.objectConfig.statutPrecedent;
@@ -456,6 +392,8 @@ void serrureBloquee()
 
     writeObjectConfig();
     sendObjectConfig();
+
+    Serial.println(F("END BLOCAGE "));
   }
 }
 
@@ -466,30 +404,11 @@ void serrureBlink()
     uneFois = false;
     Serial.println(F("SERRURE BLINK"));
 
-    previousMillisBlink = millis();
-    startMillisBlink = previousMillisBlink;
-    intervalBlink = 200;
-
-    blinkFlag = true;
+    aFastled.animationBlink02Start(100, 3000, CRGB::Blue, CRGB::Black);
   }
 
-  if(millis() - previousMillisBlink > intervalBlink)
-  {
-    previousMillisBlink = millis();
-    blinkFlag = !blinkFlag;
-
-    if (blinkFlag)
-    {
-      aFastled.allLedOn(CRGB::Blue, true);
-    }
-    else
-    {
-      aFastled.allLedOff();
-    }
-  }
-
-  // fin de l'animation blocage
-  if(millis() - startMillisBlink > 2000) 
+  // fin de l'animation blink
+  if(!aFastled.isAnimActive()) 
   {
     uneFois = true;
 
@@ -509,40 +428,38 @@ void checkRfidTag()
   {
     // print new tag
     Serial.print(F("nouveau TAG: "));
-    Serial.print(aPn532->uidLength);
-    Serial.print(F("  "));
     
     printTagUid();
 
     // check with store uid
-    bool tagOK = false;
+    bool tagOkFound = false;
     
-    for (uint8_t i=0;i<aConfig.objectConfig.nbTagActuel;i++)
+    for (uint8_t i=0;i<aConfig.objectConfig.nbTagEnMemoireActuel;i++)
     {
-      bool tagOK2 = true;
+      bool isTagOk = true;
       for (uint8_t j=1;j<4;j++)
       {        
         if ( (aPn532->uidLength>=4) && (aPn532->uid[j] != aConfig.objectConfig.tagUid[i][j]) )
         {
-          tagOK2 = false;
+          isTagOk = false;
         }
       }
 
-      if (tagOK2)
+      if (isTagOk)
       {
-        tagOK = true;
+        tagOkFound = true;
       }
     }
 
-    // change lock status if needed
-    if (tagOK)
+    // changer le statut si le tag est OK
+    if (tagOkFound)
     {
       buzzer.shortBeep();
 
       aConfig.objectConfig.statutActuel = !aConfig.objectConfig.statutActuel;
       aConfig.objectConfig.nbErreurCode = 0;
       uneFois = true;
-      Serial.println(F("tag OK, change lock status"));
+      Serial.println(F("tag OK, on change le statut de la serrure"));
     }
     else
     {
@@ -556,7 +473,7 @@ void checkRfidTag()
       aConfig.objectConfig.statutPrecedent = aConfig.objectConfig.statutActuel;
 
       // on demarre l'anim faux code
-      aConfig.objectConfig.statutActuel = SERRURE_ERREUR;
+      aConfig.objectConfig.statutActuel = OBJET_ERREUR;
 
       uneFois = true;
     }
@@ -717,11 +634,11 @@ void handleWebsocketBuffer()
         sendObjectConfigFlag = true;
       }
 
-      if (doc.containsKey("new_nbTagStock")) 
+      if (doc.containsKey("new_nbTagEnMemoireMax")) 
       {
-        uint16_t tmpValeur = doc["new_nbTagStock"];
-        aConfig.objectConfig.nbTagStock = checkValeur(tmpValeur,1,5);
-        aConfig.objectConfig.nbTagActuel=min<uint8_t>(aConfig.objectConfig.nbTagActuel,aConfig.objectConfig.nbTagStock);
+        uint16_t tmpValeur = doc["new_nbTagEnMemoireMax"];
+        aConfig.objectConfig.nbTagEnMemoireMax = checkValeur(tmpValeur,1,MAX_NB_TAG);
+        aConfig.objectConfig.nbTagEnMemoireActuel=min<uint8_t>(aConfig.objectConfig.nbTagEnMemoireActuel,aConfig.objectConfig.nbTagEnMemoireMax);
         
         writeObjectConfigFlag = true;
         sendObjectConfigFlag = true;
@@ -741,13 +658,13 @@ void handleWebsocketBuffer()
 
       if ( doc.containsKey("new_addLastUid") && doc["new_addLastUid"]==1 )
       {
-        if (aConfig.objectConfig.nbTagActuel<MAX_NB_TAG)
+        if (aConfig.objectConfig.nbTagEnMemoireActuel<min<uint8_t>(aConfig.objectConfig.nbTagEnMemoireMax, MAX_NB_TAG))
         {
           for (uint8_t  i=0;i<SIZE_UID;i++)
           {
-            aConfig.objectConfig.tagUid[aConfig.objectConfig.nbTagActuel][i]=aPn532->uid[i];
+            aConfig.objectConfig.tagUid[aConfig.objectConfig.nbTagEnMemoireActuel][i]=aPn532->uid[i];
           }
-          aConfig.objectConfig.nbTagActuel++;          
+          aConfig.objectConfig.nbTagEnMemoireActuel++;          
 
           writeObjectConfigFlag = true;
           sendObjectConfigFlag = true;
@@ -760,7 +677,7 @@ void handleWebsocketBuffer()
 
       if (doc.containsKey("new_newTagUid")) 
       {
-        if (aConfig.objectConfig.nbTagActuel<MAX_NB_TAG)
+        if (aConfig.objectConfig.nbTagEnMemoireActuel<min<uint8_t>(aConfig.objectConfig.nbTagEnMemoireMax, MAX_NB_TAG))
         {
           JsonArray newUidValue = doc["new_newTagUid"];
             
@@ -769,10 +686,10 @@ void handleWebsocketBuffer()
             const char* tagUid_0 = newUidValue[i];
             uint8_t hexValue = (uint8_t) strtol( &tagUid_0[0], NULL, 16);
             
-            aConfig.objectConfig.tagUid[aConfig.objectConfig.nbTagActuel][i]=hexValue;
+            aConfig.objectConfig.tagUid[aConfig.objectConfig.nbTagEnMemoireActuel][i]=hexValue;
             aPn532->uid[i]=hexValue;
           }
-          aConfig.objectConfig.nbTagActuel++;          
+          aConfig.objectConfig.nbTagEnMemoireActuel++;          
 
           writeObjectConfigFlag = true;
           sendObjectConfigFlag = true;
@@ -850,7 +767,7 @@ void handleWebsocketBuffer()
         IPAddress newIP;
         if (newIP.fromString(newIPchar)) 
         {
-          Serial.println("valid IP");
+          Serial.println(F("valid IP"));
           aConfig.networkConfig.apIP = newIP;
 
           writeNetworkConfigFlag = true;
@@ -870,7 +787,7 @@ void handleWebsocketBuffer()
         IPAddress newNM;
         if (newNM.fromString(newNMchar)) 
         {
-          Serial.println("valid netmask");
+          Serial.println(F("valid netmask"));
           aConfig.networkConfig.apNetMsk = newNM;
 
           writeNetworkConfigFlag = true;
@@ -960,7 +877,7 @@ void checkCharacter(char* toCheck, char* allowed, char replaceChar)
     }
     Serial.print(toCheck[i]);
   }
-  Serial.println("");
+  Serial.println(F(""));
 }
 
 uint16_t checkValeur(uint16_t valeur, uint16_t minValeur, uint16_t maxValeur)
@@ -1054,7 +971,7 @@ int I2C_ClearBus()
 
 void sendObjectConfig()
 {
-  aConfig.stringJsonFile("/config/objectconfig.txt", bufferToSend, 500);
+  aConfig.stringJsonFile("/config/objectconfig.txt", bufferToSend, BUFFERSENDSIZE);
   ws.textAll(bufferToSend);
 }
 
@@ -1065,7 +982,7 @@ void writeObjectConfig()
 
 void sendNetworkConfig()
 {
-  aConfig.stringJsonFile("/config/networkconfig.txt", bufferToSend, 500);
+  aConfig.stringJsonFile("/config/networkconfig.txt", bufferToSend, BUFFERSENDSIZE);
   ws.textAll(bufferToSend);
 }
 
@@ -1121,12 +1038,12 @@ void printTagUid()
 
 void stringTagUid(char * target)
 {
-  snprintf(target, 12, "%02x:%02x:%02x:%02x", aPn532->uid[0], aPn532->uid[1], aPn532->uid[2], aPn532->uid[3]);
+  snprintf(target, 12, "%02X:%02X:%02X:%02X", aPn532->uid[0], aPn532->uid[1], aPn532->uid[2], aPn532->uid[3]);
 }
 
 void stringTagUid(char * target, uint8_t uidToStr)
 {
-  snprintf(target, 12, "%02x:%02x:%02x:%02x", 
+  snprintf(target, 12, "%02X:%02X:%02X:%02X", 
             aConfig.objectConfig.tagUid[uidToStr][0], 
             aConfig.objectConfig.tagUid[uidToStr][1], 
             aConfig.objectConfig.tagUid[uidToStr][2], 
@@ -1137,9 +1054,9 @@ void removeUid(uint8_t uidToRemove)
 {
   uint8_t toRemove = min<uint8_t>(MAX_NB_TAG-1, uidToRemove);
   
-  if (aConfig.objectConfig.nbTagActuel>0)
+  if (aConfig.objectConfig.nbTagEnMemoireActuel>0)
   {
-    for (uint8_t i=toRemove;i<aConfig.objectConfig.nbTagActuel-1;i++)
+    for (uint8_t i=toRemove;i<aConfig.objectConfig.nbTagEnMemoireActuel-1;i++)
     {
       for (uint8_t j=0;j<SIZE_UID;j++)
       {
@@ -1147,7 +1064,7 @@ void removeUid(uint8_t uidToRemove)
       }
     }
 
-    for (uint8_t i=aConfig.objectConfig.nbTagActuel-1;i<MAX_NB_TAG;i++)
+    for (uint8_t i=aConfig.objectConfig.nbTagEnMemoireActuel-1;i<MAX_NB_TAG;i++)
     {
       for (uint8_t j=0;j<SIZE_UID;j++)
       {
@@ -1155,9 +1072,9 @@ void removeUid(uint8_t uidToRemove)
       }
     }
     
-    aConfig.objectConfig.nbTagActuel--;
+    aConfig.objectConfig.nbTagEnMemoireActuel--;
   
-    Serial.println("remove done");
+    Serial.println(F("remove done"));
   }
 }
 
