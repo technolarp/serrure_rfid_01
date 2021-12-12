@@ -116,10 +116,11 @@ void setup()
   aConfig.printJsonFile("/config/objectconfig.txt");
   aConfig.readObjectConfig("/config/objectconfig.txt");
 
-  //aConfig.printJsonFile("/config/networkconfig.txt");
+  aConfig.printJsonFile("/config/networkconfig.txt");
   aConfig.readNetworkConfig("/config/networkconfig.txt");
 
   // FASTLED
+  aFastled.setNbLed(aConfig.objectConfig.activeLeds);
   // animation led de depart
   aFastled.animationDepart(50, aFastled.getNbLed()*2, CRGB::Blue);
   
@@ -136,7 +137,20 @@ void setup()
   // AP MODE
   WiFi.mode(WIFI_AP_STA);
   WiFi.softAPConfig(aConfig.networkConfig.apIP, aConfig.networkConfig.apIP, aConfig.networkConfig.apNetMsk);
-  WiFi.softAP(aConfig.networkConfig.apName, aConfig.networkConfig.apPassword);
+  bool apRC = WiFi.softAP(aConfig.networkConfig.apName, aConfig.networkConfig.apPassword);
+
+  if (apRC)
+  {
+    Serial.println(F("AP WiFi OK"));
+  }
+  else
+  {
+    Serial.println(F("AP WiFi failed"));
+  }
+
+  // Print ESP soptAP IP Address
+  Serial.print(F("softAPIP: "));
+  Serial.println(WiFi.softAPIP());
   
   /*
   // CLIENT MODE POUR DEBUG
@@ -144,8 +158,7 @@ void setup()
   const char* password = "PASSWORD";
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-  */
-
+  
   if (WiFi.waitForConnectResult() != WL_CONNECTED) 
   {
     Serial.println(F("WiFi Failed!"));
@@ -154,14 +167,13 @@ void setup()
   {
     Serial.println(F("WiFi OK"));
   }
-  
-  // WEB SERVER
+
   // Print ESP Local IP Address
   Serial.print(F("localIP: "));
   Serial.println(WiFi.localIP());
-  Serial.print(F("softAPIP: "));
-  Serial.println(WiFi.softAPIP());
-
+  */
+  
+  // WEB SERVER
   // Route for root / web page
   server.serveStatic("/", LittleFS, "/www/").setDefaultFile("config.html");
   server.serveStatic("/config", LittleFS, "/config/");
@@ -560,8 +572,9 @@ void handleWebsocketBuffer()
         aFastled.allLedOff();
         
         uint16_t tmpValeur = doc["new_activeLeds"];
-        aConfig.objectConfig.activeLeds = checkValeur(tmpValeur,1,NB_LEDS_MAX);
         
+        aConfig.objectConfig.activeLeds = checkValeur(tmpValeur,1,NB_LEDS_MAX);
+        aFastled.setNbLed(aConfig.objectConfig.activeLeds);
         uneFois = true;
 
         writeObjectConfigFlag = true;
@@ -602,6 +615,8 @@ void handleWebsocketBuffer()
         uint16_t tmpValeur = doc["new_statutActuel"];
         aConfig.objectConfig.statutPrecedent=aConfig.objectConfig.statutActuel;
         aConfig.objectConfig.statutActuel=tmpValeur;
+
+        aFastled.setAnimation(0);
     
         uneFois=true;
         
