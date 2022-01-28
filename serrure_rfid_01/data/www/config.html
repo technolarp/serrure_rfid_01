@@ -112,6 +112,17 @@
       document.getElementById("brightness2").innerHTML = obj.brightness;
     }
 	
+	if (obj.hasOwnProperty('intervalScintillement'))
+    {
+      document.getElementById("intervalScintillement").value = obj.intervalScintillement;
+      document.getElementById("intervalScintillement2").innerHTML = obj.intervalScintillement;
+    }
+	
+	if (obj.hasOwnProperty('scintillementOnOff'))
+    {
+      document.getElementById("scintillementOnOff").value = obj.scintillementOnOff;
+    }
+	
 	if (obj.hasOwnProperty('nbErreurCodeMax'))
     {
       document.getElementById("nbErreurCodeMax").value = obj.nbErreurCodeMax;
@@ -316,7 +327,17 @@
 		sendNewValue('newTagUid',newUid, false);
   }
   
-  
+  function updateScintillement()
+  {
+	if (document.getElementById("scintillementOnOff").value == 0)
+	{
+		document.getElementById("intervalScintillement").disabled = true;
+	}
+	else
+	{
+		document.getElementById("intervalScintillement").disabled = false;
+	}
+  }
   
   </script>  
 	<body>
@@ -431,6 +452,14 @@
     <tr>
       <td>Brightness : <span id="brightness2"></span></td>
       <td><input class="enabled" id="brightness" name="brightness" type="range" min="0" max="255" step="5" onChange="sendNewValue('brightness',document.getElementById('brightness').value, false);"></td>
+    </tr>
+	<tr>
+      <td>Scintillement : <span id="intervalScintillement2"></span></td>
+		<td>
+			OFF <input class="enabled" id="scintillementOnOff" name="scintillementOnOff" type="range" style="width:30px;" min="0" max="1" step="1" onChange="sendNewValue('scintillementOnOff',this.value, false); updateScintillement();"> ON
+			<br>
+			<input class="enabled" id="intervalScintillement" name="intervalScintillement" type="range" min="0" max="100" step="1" onChange="sendNewValue('intervalScintillement',this.value, false);">
+		</td>
     </tr>
 	<tr>
       <td>Couleur fermee</td>

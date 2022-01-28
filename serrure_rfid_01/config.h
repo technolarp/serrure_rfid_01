@@ -5,6 +5,7 @@
 #define SIZE_ARRAY 20
 #define MAX_NB_TAG 10
 #define SIZE_UID 4
+#define NB_COULEURS 2
 
 #define JSONBUFFERSIZE 2048
 
@@ -24,6 +25,10 @@ class M_config
   	
   	uint8_t activeLeds;
     uint8_t brightness;
+
+    uint16_t intervalScintillement;
+    uint16_t scintillementOnOff;
+    
   	uint8_t nbErreurCodeMax;
   	uint8_t nbErreurCode;
   	uint16_t delaiBlocage;
@@ -34,7 +39,7 @@ class M_config
     uint8_t nbTagEnMemoireActuel;
     uint8_t tagUid[MAX_NB_TAG][SIZE_UID];
 
-    CRGB couleurs[2];
+    CRGB couleurs[NB_COULEURS];
   };
   
   // creer une structure
@@ -50,8 +55,7 @@ class M_config
   
   // creer une structure
   NETWORK_CONFIG_STRUCT networkConfig;
-  
-  
+    
   M_config()
   {
   }
@@ -68,7 +72,6 @@ class M_config
     }
   
     StaticJsonDocument<JSONBUFFERSIZE> doc;
-    //DynamicJsonDocument doc(JSONBUFFERSIZE);
     
     // Deserialize the JSON document
     DeserializationError error = deserializeJson(doc, file);
@@ -84,13 +87,18 @@ class M_config
       objectConfig.groupId = doc["groupId"];
       
       objectConfig.activeLeds = doc["activeLeds"];
-      objectConfig.brightness = doc["brightness"];      
+      objectConfig.brightness = doc["brightness"];
+      
+      objectConfig.intervalScintillement = doc["intervalScintillement"];
+      objectConfig.scintillementOnOff = doc["scintillementOnOff"];  
+      
       objectConfig.nbErreurCodeMax = doc["nbErreurCodeMax"];
       objectConfig.nbErreurCode = doc["nbErreurCode"];
       objectConfig.delaiBlocage = doc["delaiBlocage"];      
       
       objectConfig.statutActuel = doc["statutActuel"];
       objectConfig.statutPrecedent = doc["statutPrecedent"];
+      
       objectConfig.nbTagEnMemoireMax = doc["nbTagEnMemoireMax"];
       objectConfig.nbTagEnMemoireActuel = doc["nbTagEnMemoireActuel"];
 
@@ -116,7 +124,7 @@ class M_config
       {
         JsonArray couleurArray=doc["couleurs"];
         
-        for (uint8_t i=0;i<2;i++)
+        for (uint8_t i=0;i<NB_COULEURS;i++)
         {
           JsonArray rgbArray=couleurArray[i];
 
@@ -163,6 +171,10 @@ class M_config
 
     doc["activeLeds"] = objectConfig.activeLeds;
     doc["brightness"] = objectConfig.brightness;
+
+    doc["intervalScintillement"] = objectConfig.intervalScintillement;
+    doc["scintillementOnOff"] = objectConfig.scintillementOnOff;
+    
     doc["nbErreurCodeMax"] = objectConfig.nbErreurCodeMax;
     doc["nbErreurCode"] = objectConfig.nbErreurCode;
     doc["delaiBlocage"] = objectConfig.delaiBlocage;
@@ -190,7 +202,7 @@ class M_config
 
     JsonArray couleurArray = doc.createNestedArray("couleurs");
 
-    for (uint8_t i=0;i<2;i++)
+    for (uint8_t i=0;i<NB_COULEURS;i++)
     {
       JsonArray couleur_x = couleurArray.createNestedArray();
       
@@ -215,7 +227,11 @@ class M_config
     objectConfig.groupId = 1;
 
     objectConfig.activeLeds = 8;
-    objectConfig.brightness = 80;  
+    objectConfig.brightness = 80;
+
+    objectConfig.intervalScintillement = 50;
+    objectConfig.scintillementOnOff = 0;
+    
     objectConfig.nbErreurCodeMax = 3;
     objectConfig.nbErreurCode = 0;
     objectConfig.delaiBlocage = 5;
@@ -244,7 +260,7 @@ class M_config
     
     strlcpy( objectConfig.objectName,
              "serrure rfid",
-             sizeof("serrure rfid"));
+             SIZE_ARRAY);
     
     writeObjectConfig(filename);
     }
@@ -260,7 +276,7 @@ class M_config
       return;
     }
   
-    StaticJsonDocument<1024> doc;
+    StaticJsonDocument<JSONBUFFERSIZE> doc;
     
     // Deserialize the JSON document
     DeserializationError error = deserializeJson(doc, file);
@@ -296,14 +312,14 @@ class M_config
       { 
         strlcpy(  networkConfig.apName,
                   doc["apName"],
-                  sizeof(networkConfig.apName));
+                  SIZE_ARRAY);
       }
 
       if (doc.containsKey("apPassword"))
       { 
         strlcpy(  networkConfig.apPassword,
                   doc["apPassword"],
-                  sizeof(networkConfig.apPassword));
+                  SIZE_ARRAY);
       }
     }
       
@@ -325,28 +341,23 @@ class M_config
     }
 
     // Allocate a temporary JsonDocument
-    StaticJsonDocument<1024> doc;
+    StaticJsonDocument<JSONBUFFERSIZE> doc;
 
     doc["apName"] = networkConfig.apName;
     doc["apPassword"] = networkConfig.apPassword;
 
-    StaticJsonDocument<128> docIp;
-    JsonArray arrayIp = docIp.to<JsonArray>();
-    arrayIp.add(networkConfig.apIP[0]);
-    arrayIp.add(networkConfig.apIP[1]);
-    arrayIp.add(networkConfig.apIP[2]);
-    arrayIp.add(networkConfig.apIP[3]);
-
-    StaticJsonDocument<128> docNetMask;
-    JsonArray arrayNetMask = docNetMask.to<JsonArray>();
-    arrayNetMask.add(networkConfig.apNetMsk[0]);
-    arrayNetMask.add(networkConfig.apNetMsk[1]);
-    arrayNetMask.add(networkConfig.apNetMsk[2]);
-    arrayNetMask.add(networkConfig.apNetMsk[3]);
+    JsonArray arrayIp = doc.createNestedArray("apIP");
+    for (uint8_t i=0;i<4;i++)
+    {
+      arrayIp.add(networkConfig.apIP[i]);
+    }
     
-    doc["apIP"]=arrayIp;
-    doc["apNetMsk"]=arrayNetMask;
-
+    JsonArray arrayNetMask = doc.createNestedArray("apNetMsk");
+    for (uint8_t i=0;i<4;i++)
+    {
+      arrayNetMask.add(networkConfig.apNetMsk[i]);
+    }
+    
     // Serialize JSON to file
     if (serializeJson(doc, file) == 0) 
     {
@@ -359,25 +370,25 @@ class M_config
   
   void writeDefaultNetworkConfig(const char * filename)
   {
-  strlcpy(  networkConfig.apName,
-            "SERRURERFID",
-            sizeof("SERRURERFID"));
-  
-  strlcpy(  networkConfig.apPassword,
-            "",
-            sizeof(""));
-
-  networkConfig.apIP[0]=192;
-  networkConfig.apIP[1]=168;
-  networkConfig.apIP[2]=1;
-  networkConfig.apIP[3]=1;
-
-  networkConfig.apNetMsk[0]=255;
-  networkConfig.apNetMsk[1]=255;
-  networkConfig.apNetMsk[2]=255;
-  networkConfig.apNetMsk[3]=0;
+    strlcpy(  networkConfig.apName,
+              "SERRURERFID",
+              SIZE_ARRAY);
     
-  writeNetworkConfig(filename);
+    strlcpy(  networkConfig.apPassword,
+              "",
+              SIZE_ARRAY);
+  
+    networkConfig.apIP[0]=192;
+    networkConfig.apIP[1]=168;
+    networkConfig.apIP[2]=1;
+    networkConfig.apIP[3]=1;
+  
+    networkConfig.apNetMsk[0]=255;
+    networkConfig.apNetMsk[1]=255;
+    networkConfig.apNetMsk[2]=255;
+    networkConfig.apNetMsk[3]=0;
+      
+    writeNetworkConfig(filename);
   }
 
   

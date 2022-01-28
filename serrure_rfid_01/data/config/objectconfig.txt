@@ -4,6 +4,8 @@
 "groupId":1,
 "activeLeds":8,
 "brightness":80,
+"intervalScintillement":50,
+"scintillementOnOff":0,
 "couleurs":[[255,0,0],[0,255,0]],
 "nbErreurCodeMax":3,
 "nbErreurCode":0,
