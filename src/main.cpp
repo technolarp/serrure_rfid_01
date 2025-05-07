@@ -2,7 +2,7 @@
    ----------------------------------------------------------------------------
    TECHNOLARP - https://technolarp.github.io/
    SERRURE RFID 01 - https://github.com/technolarp/serrure_rfid_01
-   version 1.0 - 12/2021
+   version 1.1.0 - 05/2025
    ----------------------------------------------------------------------------
 */
 
@@ -128,7 +128,7 @@ void setup()
   Serial.println(F("----------------------------------------------------------------------------"));
   Serial.println(F("TECHNOLARP - https://technolarp.github.io/"));
   Serial.println(F("SERRURE RFID 01 - https://github.com/technolarp/serrure_rfid_01"));
-  Serial.println(F("version 1.0 - 12/2021"));
+  Serial.println(F("version 1.1.0 - 05/2025"));
   Serial.println(F("----------------------------------------------------------------------------"));
 
   // I2C RESET
