@@ -147,6 +147,9 @@ void setup()
 
   aConfig.printJsonFile("/config/networkconfig.txt");
   aConfig.readNetworkConfig("/config/networkconfig.txt");
+  
+  // RFID
+  aPn532 = new M_pn532;
 
   // FASTLED
   aFastled.setNbLed(aConfig.objectConfig.activeLeds);
@@ -156,9 +159,6 @@ void setup()
   // animation led de depart
   aFastled.animationDepart(50, aFastled.getNbLed()*2, CRGB::Blue);
   
-  // RFID
-  aPn532 = new M_pn532;
-
   // WIFI
   WiFi.disconnect(true);
 
@@ -575,6 +575,8 @@ void handleWebsocketBuffer()
         strlcpy(  aConfig.objectConfig.objectName,
                   doc["new_objectName"],
                   sizeof(aConfig.objectConfig.objectName));
+
+        checkCharacter(aConfig.objectConfig.objectName, listeCheck, '_');
 
         writeObjectConfigFlag = true;
         sendObjectConfigFlag = true;
