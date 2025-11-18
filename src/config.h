@@ -2,7 +2,9 @@
 #include <ArduinoJson.h> // arduino json v7  // https://github.com/bblanchon/ArduinoJson
 
 // to upload config dile : https://github.com/earlephilhower/arduino-esp8266littlefs-plugin/releases
-#define SIZE_ARRAY 21
+#define SIZE_ARRAY 33
+#define SIZE_PWD 64
+#define WIFI_CLIENTS 5
 #define MAX_NB_TAG 10
 #define SIZE_UID 4
 #define NB_COULEURS 2
@@ -46,10 +48,19 @@ class M_config
 
   struct NETWORK_CONFIG_STRUCT
   {
+    uint8_t wifiConnectDelay = 15;
+
+    char ssid[WIFI_CLIENTS][SIZE_ARRAY];
+    char password[WIFI_CLIENTS][SIZE_PWD];
+    bool active[WIFI_CLIENTS];
+
+    bool disableSsid = false;
+    bool rebootEsp = false;
+    
     IPAddress apIP;
     IPAddress apNetMsk;
     char apName[SIZE_ARRAY];
-    char apPassword[SIZE_ARRAY];
+    char apPassword[SIZE_PWD];
   };
   
   // creer une structure
@@ -257,25 +268,25 @@ class M_config
     objectConfig.couleurs[1].blue =  0;
     
     strlcpy( objectConfig.objectName,
-             "serrure rfid",
+             "serrure-rfid",
              SIZE_ARRAY);
     
     writeObjectConfig(filename);
     }
   
-  void readNetworkConfig(const char * filename)
+  void readNetworkConfig(const char *filename)
   {
     // lire les données depuis le fichier littleFS
     // Open file for reading
     File file = LittleFS.open(filename, "r");
-    if (!file) 
+    if (!file)
     {
       Serial.println(F("Failed to open file for reading"));
       return;
     }
-  
+
     JsonDocument doc;
-    
+
     // Deserialize the JSON document
     DeserializationError error = deserializeJson(doc, file);
     if (error)
@@ -285,54 +296,113 @@ class M_config
     }
     else
     {
-      // Copy values from the JsonObject to the Config
-      if (doc["apIP"].is<JsonVariant>())
-      { 
-        JsonArray apIP = doc["apIP"];
-        
-        networkConfig.apIP[0] = apIP[0];
-        networkConfig.apIP[1] = apIP[1];
-        networkConfig.apIP[2] = apIP[2];
-        networkConfig.apIP[3] = apIP[3];
+       // parse wifi ssid list
+      if (doc["wifiClientsConfig"]["wifiClientsList"].is<JsonVariant>())
+      {
+        JsonArray wifiClientArray = doc["wifiClientsConfig"]["wifiClientsList"];
+
+        for (uint8_t i = 0; i < WIFI_CLIENTS; i++)
+        {
+          if (wifiClientArray[i]["ssid"].is<JsonVariant>())
+          {
+            strlcpy(networkConfig.ssid[i], wifiClientArray[i]["ssid"], SIZE_ARRAY);
+            strlcpy(networkConfig.password[i], wifiClientArray[i]["password"], SIZE_PWD);
+            networkConfig.active[i]=wifiClientArray[i]["active"].as<boolean>();
+          }
+        }
+
+        wifiClientArray.clear();
       }
 
-      if (doc["apNetMsk"].is<JsonVariant>())
-      { 
-        JsonArray apNetMsk = doc["apNetMsk"];
-        
-        networkConfig.apNetMsk[0] = apNetMsk[0];
-        networkConfig.apNetMsk[1] = apNetMsk[1];
-        networkConfig.apNetMsk[2] = apNetMsk[2];
-        networkConfig.apNetMsk[3] = apNetMsk[3];
-      }
-          
-      if (doc["apName"].is<const char*>())
-      { 
-        strlcpy(  networkConfig.apName,
-                  doc["apName"],
-                  SIZE_ARRAY);
+      if (doc["wifiClientsConfig"]["wifiConnectDelay"].is<unsigned short>())
+      {
+        networkConfig.wifiConnectDelay=doc["wifiClientsConfig"]["wifiConnectDelay"];
       }
 
-      if (doc["apPassword"].is<const char*>())
-      { 
-        strlcpy(  networkConfig.apPassword,
-                  doc["apPassword"],
-                  SIZE_ARRAY);
+      if (doc["wifiClientsConfig"]["disableSsid"].is<boolean>())
+      {
+        networkConfig.disableSsid=doc["wifiClientsConfig"]["disableSsid"].as<boolean>();
+      }
+
+      if (doc["wifiClientsConfig"]["rebootEsp"].is<boolean>())
+      {
+        networkConfig.rebootEsp=doc["wifiClientsConfig"]["rebootEsp"].as<boolean>();
+      }
+
+      // parse wifi AP config
+      if (doc["wifiAPConfig"]["apIP"].is<JsonVariant>())
+      {
+        JsonArray apIPArray = doc["wifiAPConfig"]["apIP"];
+
+        for (uint8_t i = 0; i < 4; i++)
+        {
+          networkConfig.apIP[i] = apIPArray[i];
+        }
+
+        apIPArray.clear();
+      }
+
+      if (doc["wifiAPConfig"]["apNetMsk"].is<JsonVariant>())
+      {
+        JsonArray apNetMskArray = doc["wifiAPConfig"]["apNetMsk"];
+
+        for (uint8_t i = 0; i < 4; i++)
+        {
+          networkConfig.apNetMsk[i] = apNetMskArray[i];
+        }
+
+        apNetMskArray.clear();
+      }
+
+      if (doc["wifiAPConfig"]["apName"].is<JsonVariant>())
+      {
+        strlcpy(networkConfig.apName,
+                doc["wifiAPConfig"]["apName"],
+                SIZE_ARRAY);
+      }
+
+      if (doc["wifiAPConfig"]["apPassword"].is<JsonVariant>())
+      {
+        strlcpy(networkConfig.apPassword,
+                doc["wifiAPConfig"]["apPassword"],
+                SIZE_PWD);
+      }
+
+      // check AP config & create default config 
+      if (strlen(networkConfig.apName) == 0)
+      {
+        Serial.println(F("no apName in config, creating default"));
+        
+        // default AP config
+        networkConfig.apIP[0] = 192;
+        networkConfig.apIP[1] = 168;
+        networkConfig.apIP[2] = 1;
+        networkConfig.apIP[3] = 1;
+
+        networkConfig.apNetMsk[0] = 255;
+        networkConfig.apNetMsk[1] = 255;
+        networkConfig.apNetMsk[2] = 255;
+        networkConfig.apNetMsk[3] = 0;
+
+        snprintf(networkConfig.apName, SIZE_ARRAY, "TECHNOLARP_%04d", (ESP.getChipId() & 0xFFFF));
+        strlcpy(networkConfig.apPassword, "", SIZE_PWD);
       }
     }
-      
+
+    doc.clear();
+    
     // Close the file (File's destructor doesn't close the file)
     file.close();
   }
-  
-  void writeNetworkConfig(const char * filename)
+
+  void writeNetworkConfig(const char *filename)
   {
     // Delete existing file, otherwise the configuration is appended to the file
     LittleFS.remove(filename);
-  
+
     // Open file for writing
     File file = LittleFS.open(filename, "w");
-    if (!file) 
+    if (!file)
     {
       Serial.println(F("Failed to create file"));
       return;
@@ -341,51 +411,86 @@ class M_config
     // Allocate a temporary JsonDocument
     JsonDocument doc;
 
-    doc["apName"] = networkConfig.apName;
-    doc["apPassword"] = networkConfig.apPassword;
+    JsonArray arraySsid = doc["wifiClientsConfig"]["wifiClientsList"].to<JsonArray>();
+    for (uint8_t i = 0; i < WIFI_CLIENTS; i++)
+    {
+      JsonDocument docSsid;
+      docSsid["ssid"] = networkConfig.ssid[i];
+      docSsid["password"] = networkConfig.password[i];
+      docSsid["active"] = networkConfig.active[i];
 
-    JsonArray arrayIp = doc["apIP"].to<JsonArray>();
-    for (uint8_t i=0;i<4;i++)
+      arraySsid.add(docSsid);
+    }
+
+    doc["wifiClientsConfig"]["wifiConnectDelay"] = networkConfig.wifiConnectDelay;
+    doc["wifiClientsConfig"]["disableSsid"] = networkConfig.disableSsid;
+    doc["wifiClientsConfig"]["rebootEsp"] = networkConfig.rebootEsp;
+    
+    doc["wifiAPConfig"]["apName"] = networkConfig.apName;
+    doc["wifiAPConfig"]["apPassword"] = networkConfig.apPassword;
+
+    JsonArray arrayIp = doc["wifiAPConfig"]["apIP"].to<JsonArray>();
+    for (uint8_t i = 0; i < 4; i++)
     {
       arrayIp.add(networkConfig.apIP[i]);
     }
-    
-    JsonArray arrayNetMask = doc["apNetMsk"].to<JsonArray>();
-    for (uint8_t i=0;i<4;i++)
+
+    JsonArray arrayNetMask = doc["wifiAPConfig"]["apNetMsk"].to<JsonArray>();
+    for (uint8_t i = 0; i < 4; i++)
     {
       arrayNetMask.add(networkConfig.apNetMsk[i]);
     }
-    
+
     // Serialize JSON to file
-    if (serializeJson(doc, file) == 0) 
+    if (serializeJson(doc, file) == 0)
     {
       Serial.println(F("Failed to write to file"));
     }
-    
+
     // Close the file (File's destructor doesn't close the file)
     file.close();
   }
-  
-  void writeDefaultNetworkConfig(const char * filename)
+
+  void writeDefaultNetworkConfig(const char *filename)
   {
-    strlcpy(  networkConfig.apName,
-              "SERRURERFID",
+    for (uint8_t i = 0; i < WIFI_CLIENTS; i++)
+    {
+      char buffer[SIZE_ARRAY];
+      snprintf(buffer, SIZE_ARRAY, "SSID%d", i + 1);
+      strlcpy(networkConfig.ssid[i],
+              buffer,
               SIZE_ARRAY);
-    
-    strlcpy(  networkConfig.apPassword,
-              "",
+
+      snprintf(buffer, SIZE_ARRAY, "password%d", i + 1);
+      strlcpy(networkConfig.password[i],
+              buffer,
               SIZE_ARRAY);
-  
-    networkConfig.apIP[0]=192;
-    networkConfig.apIP[1]=168;
-    networkConfig.apIP[2]=1;
-    networkConfig.apIP[3]=1;
-  
-    networkConfig.apNetMsk[0]=255;
-    networkConfig.apNetMsk[1]=255;
-    networkConfig.apNetMsk[2]=255;
-    networkConfig.apNetMsk[3]=0;
       
+      networkConfig.active[i] = false;
+    }
+
+    networkConfig.wifiConnectDelay = 15;  
+    networkConfig.disableSsid = false;
+    networkConfig.rebootEsp = false;
+    
+    strlcpy(networkConfig.apName,
+            "SERRURE_RFID",
+            SIZE_ARRAY);
+
+    strlcpy(networkConfig.apPassword,
+            "",
+            SIZE_ARRAY);
+
+    networkConfig.apIP[0] = 192;
+    networkConfig.apIP[1] = 168;
+    networkConfig.apIP[2] = 1;
+    networkConfig.apIP[3] = 1;
+
+    networkConfig.apNetMsk[0] = 255;
+    networkConfig.apNetMsk[1] = 255;
+    networkConfig.apNetMsk[2] = 255;
+    networkConfig.apNetMsk[3] = 0;
+
     writeNetworkConfig(filename);
   }
 

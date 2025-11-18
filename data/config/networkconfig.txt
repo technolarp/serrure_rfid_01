@@ -1,6 +1,0 @@
-{
-"apName":"SERRURERFID",
-"apPassword":"",
-"apIP":[192,168,1,1],
-"apNetMsk":[255,255,255,0]
-}

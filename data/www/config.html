@@ -272,25 +272,74 @@
 		}
     }
 	
-	if (obj.hasOwnProperty('apName'))
-    {
-      document.getElementById("apNameTitle").innerHTML = obj.apName + " Network config";
-	  document.getElementById("apName").value = obj.apName;
-    }
-	
-	if (obj.hasOwnProperty('apPassword') && obj.apPassword != "")
-    {
-      document.getElementById("apPassword").value = obj.apPassword;
-    }
-	
-	if (obj.hasOwnProperty('apIP'))
-    {
-      document.getElementById("apIP").value = obj.apIP[0] + "." + obj.apIP[1] + "." + obj.apIP[2] + "." + obj.apIP[3];
-    }
-	
-	if (obj.hasOwnProperty('apNetMsk'))
-    {
-      document.getElementById("apNetMsk").value = obj.apNetMsk[0] + "." + obj.apNetMsk[1] + "." + obj.apNetMsk[2] + "." + obj.apNetMsk[3];
+	if (obj.wifiClientsConfig?.hasOwnProperty('wifiClientsList')) {
+			for (let i = 0; i < 5; i++) {
+				ssidToChange = 'ssid_' + i;
+				pwdToChange = 'pwd_' + i;
+				activeToChange = 'active_' + i;
+				
+				if (obj.wifiClientsConfig?.wifiClientsList?.[i].hasOwnProperty('ssid')) {
+					document.getElementById(ssidToChange).value = obj.wifiClientsConfig.wifiClientsList[i].ssid;
+				}
+				
+				if (obj.wifiClientsConfig?.wifiClientsList?.[i].hasOwnProperty('password')) {
+					document.getElementById(pwdToChange).value = obj.wifiClientsConfig.wifiClientsList[i].password;
+				}
+				
+				if (obj.wifiClientsConfig.wifiClientsList[i].active == true) {
+					document.getElementById(activeToChange).value = 1;
+					document.getElementById(ssidToChange).disabled = false;
+					document.getElementById(pwdToChange).disabled = false;
+				}
+				else {
+					document.getElementById(activeToChange).value = 0;
+					document.getElementById(ssidToChange).disabled = true;
+					document.getElementById(pwdToChange).disabled = true;
+				}
+			}
+		}		
+		
+		if (obj.wifiClientsConfig?.hasOwnProperty('wifiConnectDelay')) {
+			document.getElementById("wifiConnectDelay").value = obj.wifiClientsConfig.wifiConnectDelay;
+		}
+		
+		if (obj.wifiClientsConfig?.hasOwnProperty('disableSsid')) {
+			if (obj.wifiClientsConfig.disableSsid == true) {
+				document.getElementById("disableSsid").value = 1;
+			}
+			else {
+				document.getElementById("disableSsid").value = 0;
+			}
+		}
+		
+		if (obj.wifiClientsConfig?.hasOwnProperty('rebootEsp')) {
+			if (obj.wifiClientsConfig.rebootEsp == true) {
+				document.getElementById("rebootEsp").value = 1;
+			}
+			else {
+				document.getElementById("rebootEsp").value = 0;
+			}
+		}
+		
+		if (obj.wifiClientsConfig?.hasOwnProperty('wifiConnectDelay')) {
+			document.getElementById("wifiConnectDelay").value = obj.wifiClientsConfig.wifiConnectDelay;
+		}
+		
+		if (obj.wifiAPConfig?.hasOwnProperty('apName')) {
+			document.getElementById("apName").value = obj.wifiAPConfig.apName;
+			document.getElementById("apNameTitle").innerHTML = obj.wifiAPConfig.apName + " Network config";
+		}
+
+		if (obj.wifiAPConfig?.hasOwnProperty('apPassword') && obj.wifiAPConfig.apPassword != "") {
+			document.getElementById("apPassword").value = obj.wifiAPConfig.apPassword;
+		}
+
+		if (obj.wifiAPConfig?.hasOwnProperty('apIP')) {
+			document.getElementById("apIP").value = obj.wifiAPConfig.apIP[0] + "." + obj.wifiAPConfig.apIP[1] + "." + obj.wifiAPConfig.apIP[2] + "." + obj.wifiAPConfig.apIP[3];
+		}
+
+		if (obj.wifiAPConfig?.hasOwnProperty('apNetMsk')) {
+			document.getElementById("apNetMsk").value = obj.wifiAPConfig.apNetMsk[0] + "." + obj.wifiAPConfig.apNetMsk[1] + "." + obj.wifiAPConfig.apNetMsk[2] + "." + obj.wifiAPConfig.apNetMsk[3];
     }
   }
   
@@ -347,7 +396,7 @@
     </tr>
     <tr>
       <td>Object name </td>
-      <td><input type="text" id="objectName" name="objectName" onchange="sendNewValue('objectName',document.getElementById('objectName').value, true);"> &nbsp; &nbsp; &nbsp; &nbsp; 20 characters max</td>
+      <td><input type="text" id="objectName" name="objectName" onchange="sendNewValue('objectName',document.getElementById('objectName').value, true);"> &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; a-z, 0-9, -,  32 characters max</td>
     </tr>
     <tr>
       <td>Object ID </td>
@@ -472,23 +521,100 @@
 	</table>
 	<table width=600>
 	<tr>
-      <td colspan="2"><h2><span id="apNameTitle"></span></h2></td>
-    </tr>
-    <tr>
-      <td>AP name </td>
-      <td><input type="text" id="apName" name="apName" onchange="sendNewValue('apName',document.getElementById('apName').value, true);"> &nbsp; &nbsp; &nbsp; &nbsp; 20 UPPERCASE characters max</td>
-    </tr>
-	<tr>
-      <td>AP password </td>
-      <td><input type="text" id="apPasword" name="apPasword" onchange="sendNewValue('apPasword',document.getElementById('apPasword').value, true);"> &nbsp; &nbsp; &nbsp; &nbsp; vide ou min 8 - max 20 characters</td>
-    </tr>
-	<tr>
-      <td>AP IP </td>
-      <td><input type="text" id="apIP" name="apIP" onchange="sendNewValue('apIP',document.getElementById('apIP').value, true);"> &nbsp; !! restart obligatoire apres modif !!</td>
-    </tr>
-	<tr>
-      <td>AP netmask </td>
-      <td><input type="text" id="apNetMsk" name="apNetMsk" onchange="sendNewValue('apNetMsk',document.getElementById('apNetMsk').value, true);"> &nbsp; !! restart obligatoire apres modif !!</td>
+      <td colspan="2"><h2><span id="apNameTitle"></span></h2>
+			</td>
+		</tr>
+		
+		<tr>
+			<td></td>
+			<td>SSID &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; PASSWORD &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ACTIVE</td>
+		</tr>
+		
+		
+		<tr>
+			<td>SSID 1</td>
+			<td><input type="text" id="ssid_0" name="ssid_0" onchange="sendNewValue('ssid','[0,&#34;'+this.value+'&#34;]', false);">
+							<input type="text" id="pwd_0" name="pwd_0" onchange="sendNewValue('password','[0,&#34;'+this.value+'&#34;]', false);">
+							OFF <input class="enabled" id="active_0" name="active_0" type="range"
+					style="width:30px;" min="0" max="1" step="1"
+					onChange="sendNewValue('active','[0,'+this.value+']', false);"> ON</td>
+		</tr>
+		<tr>
+				<td>SSID 2</td>			
+				<td><input type="text" id="ssid_1" name="ssid_1" onchange="sendNewValue('ssid','[1,&#34;'+this.value+'&#34;]', false);">
+							<input type="text" id="pwd_1" name="pwd_1" onchange="sendNewValue('password','[1,&#34;'+this.value+'&#34;]', false);">
+							OFF <input class="enabled" id="active_1" name="active_1" type="range"
+					style="width:30px;" min="0" max="1" step="1"
+					onChange="sendNewValue('active','[1,'+this.value+']', false);"> ON</td>
+		</tr>
+		<tr>
+				<td>SSID 3</td>			
+				<td><input type="text" id="ssid_2" name="ssid_2" onchange="sendNewValue('ssid','[2,&#34;'+this.value+'&#34;]', false);">
+							<input type="text" id="pwd_2" name="pwd_2" onchange="sendNewValue('password','[2,&#34;'+this.value+'&#34;]', false);">
+							OFF <input class="enabled" id="active_2" name="active_2" type="range"
+					style="width:30px;" min="0" max="1" step="1"
+					onChange="sendNewValue('active','[2,'+this.value+']', false);"> ON</td>
+			</tr>
+			<tr>
+				<td>SSID 4</td>			
+				<td><input type="text" id="ssid_3" name="ssid_3" onchange="sendNewValue('ssid','[3,&#34;'+this.value+'&#34;]', false);">
+							<input type="text" id="pwd_3" name="pwd_3" onchange="sendNewValue('password','[3,&#34;'+this.value+'&#34;]', false);">
+							OFF <input class="enabled" id="active_3" name="active_3" type="range"
+					style="width:30px;" min="0" max="1" step="1"
+					onChange="sendNewValue('active','[3,'+this.value+']', false);"> ON</td>
+			</tr>
+			<tr>
+				<td>SSID 5</td>			
+				<td><input type="text" id="ssid_4" name="ssid_4" onchange="sendNewValue('ssid','[4,&#34;'+this.value+'&#34;]', false);">
+							<input type="text" id="pwd_4" name="pwd_4" onchange="sendNewValue('password','[4,&#34;'+this.value+'&#34;]', false);">
+							OFF <input class="enabled" id="active_4" name="active_4" type="range"
+					style="width:30px;" min="0" max="1" step="1"
+					onChange="sendNewValue('active','[4,'+this.value+']', false);"> ON</td>
+			</tr>
+		<tr>
+			<td>wifiConnectDelay </td>
+			<td><input type="text" id="wifiConnectDelay" name="wifiConnectDelay"  min="1" max="255"
+					onchange="sendNewValue('wifiConnectDelay',document.getElementById('wifiConnectDelay').value, true);"> &nbsp; &nbsp;
+				&nbsp; &nbsp; 1 - 255</td>
+		</tr>
+		<tr>
+			<td>disableSsid </td>
+			<td>
+				OFF <input class="enabled" id="disableSsid" name="disableSsid" type="range"
+					style="width:30px;" min="0" max="1" step="1"
+					onChange="sendNewValue('disableSsid',this.value, false);"> ON
+			</td>
+		</tr>
+		<tr>
+			<td>rebootEsp </td>
+			<td>
+				OFF <input class="enabled" id="rebootEsp" name="rebootEsp" type="range"
+					style="width:30px;" min="0" max="1" step="1"
+					onChange="sendNewValue('rebootEsp',this.value, false);"> ON
+			</td>
+		</tr>		
+		<tr>
+			<td>AP name </td>
+			<td><input type="text" id="apName" name="apName"
+					onchange="sendNewValue('apName',document.getElementById('apName').value, true);"> &nbsp; &nbsp;
+				&nbsp; &nbsp; 32 UPPERCASE characters max</td>
+		</tr>
+		<tr>
+			<td>AP password </td>
+			<td><input type="text" id="apPasword" name="apPasword"
+					onchange="sendNewValue('apPasword',document.getElementById('apPasword').value, true);"> &nbsp;
+				&nbsp; &nbsp; &nbsp; vide ou min 8 - max 63 characters</td>
+		</tr>
+		<tr>
+			<td>AP IP </td>
+			<td><input type="text" id="apIP" name="apIP"
+					onchange="sendNewValue('apIP',document.getElementById('apIP').value, true);"> &nbsp; !! restart
+				obligatoire apres modif !!</td>
+		</tr>
+		<tr>
+			<td>AP netmask </td>
+			<td><input type="text" id="apNetMsk" name="apNetMsk"
+					onchange="sendNewValue('apNetMsk',document.getElementById('apNetMsk').value, true);"> &nbsp; !! restart obligatoire apres modif !!</td>
     </tr>
 	<tr>
       <td>WebSocket Connexion </td>
