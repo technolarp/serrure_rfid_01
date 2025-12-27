@@ -1,0 +1,20 @@
+{
+"wifiClientsConfig":{
+    "wifiClientsList":[
+    {"ssid":"SSID1","password":"password1","active":false},
+    {"ssid":"SSID2","password":"password2","active":false},
+    {"ssid":"SSID3","password":"password3","active":false},
+    {"ssid":"SSID4","password":"password4","active":false},
+    {"ssid":"SSID5","password":"password5","active":false}
+    ],
+    "wifiConnectDelay":15,
+    "disableSsid":false,
+    "rebootEsp":false
+},
+"wifiAPConfig":{
+    "apName":"SERRURE_RFID",
+    "apPassword": "",
+    "apIP":[192,168,1,1],
+    "apNetMsk": [255,255,255,0]
+    }
+}
