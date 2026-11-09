@@ -63,7 +63,7 @@ Par défaut, il n'y a aucun tag RFID enregistré dans la mémoire de la serrure.
 Une fois la serrure mise sous tension par batterie ou câble USB, elle se place dans l'état FERMEE. Si la serrure est éteinte, elle enregistre son état actuel et retourne dans cet état à l'allumage.
 
 On utilise des tags RFID de type MIFARE Classic 1K, fréquence 13.56MHz (norme ISO14443A). Ces tags se présentent sous de nombreuses formes :
-| <img src="./images/technolarp_exemple_carte_rfid.jpg" width="200"> | <img src="./images/technolarp_exemple_etiquette_rfid.jpg" width="200"> | <img src="./images/technolarp_exemple_porte-cle_rfid.jpg" width="200"> | <img src="./images/technolarp_exemple_puce_miniature_rfid.jpg" width="200"> |
+| <img src="./images/technolarp_exemple_carte_rfid.png" width="200"> | <img src="./images/technolarp_exemple_etiquette_rfid.png" width="200"> | <img src="./images/technolarp_exemple_porte-cle_rfid.png" width="200"> | <img src="./images/technolarp_exemple_puce_miniature_rfid.png" width="200"> |
 |---|---|---|---|
 
 ## Ajouter un tag RFID en mémoire
